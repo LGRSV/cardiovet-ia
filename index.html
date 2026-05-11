@@ -507,6 +507,125 @@ body {
   background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9;
 }
 
+/* ─────────────────────────────── COMPARE SECTION ──────────────────────── */
+.compare-wrap { display: none; margin-top: 28px; }
+.compare-wrap.visible { display: block; }
+.compare-card {
+  background: var(--white); border-radius: var(--radius-lg);
+  box-shadow: var(--card-shadow); border: 1px solid var(--border);
+  overflow: hidden;
+}
+.compare-head {
+  padding: 18px 24px 16px;
+  background: linear-gradient(to right, #fff8f0, var(--white) 60%);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+}
+.compare-icon-box {
+  width: 32px; height: 32px; border-radius: 10px;
+  background: var(--gold); color: #fff;
+  font-size: 1rem;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.compare-head-text h3 { font-size: 0.95rem; font-weight: 700; color: var(--navy-mid); }
+.compare-head-text small { font-size: 0.75rem; color: var(--text-muted); }
+.compare-body { padding: 22px 24px; }
+.compare-select-label { font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+.compare-select {
+  width: 100%; padding: 12px 16px;
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 0.9rem; color: var(--text); background: var(--bg);
+  outline: none; cursor: pointer; transition: border-color 0.2s;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%237a93a3' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center;
+  padding-right: 36px;
+}
+.compare-select:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(244,164,53,0.12); }
+
+/* output área */
+.compare-output { display: none; margin-top: 22px; }
+.compare-output.show { display: block; }
+
+.co-target {
+  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-mid) 100%);
+  border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px;
+  color: #fff; display: flex; align-items: center; gap: 14px;
+}
+.co-target-icon { font-size: 2rem; flex-shrink: 0; }
+.co-target-text { flex: 1; }
+.co-target-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.6; margin-bottom: 2px; }
+.co-target-name { font-size: 1.05rem; font-weight: 800; }
+.co-target-score {
+  background: rgba(255,255,255,0.15); border-radius: var(--radius-sm);
+  padding: 8px 14px; text-align: center; flex-shrink: 0;
+}
+.co-target-pct { font-size: 1.6rem; font-weight: 900; line-height: 1; }
+.co-target-pct-lbl { font-size: 0.65rem; opacity: 0.7; }
+
+.co-section-title {
+  font-size: 0.8rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.co-section-title::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+
+/* bloco de comparação com outra doença */
+.co-rival {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  margin-bottom: 10px; overflow: hidden; background: var(--white);
+}
+.co-rival-head {
+  padding: 13px 16px; display: flex; align-items: center; gap: 12px;
+  cursor: pointer; transition: background 0.15s;
+}
+.co-rival-head:hover { background: var(--bg); }
+.co-rival-rank { font-size: 1.1rem; font-weight: 900; width: 28px; text-align: center; flex-shrink: 0; }
+.co-rival-info { flex: 1; }
+.co-rival-name { font-size: 0.9rem; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+.co-rival-sub { font-size: 0.73rem; color: var(--text-muted); }
+.co-rival-delta {
+  font-size: 0.85rem; font-weight: 800; flex-shrink: 0;
+  padding: 4px 10px; border-radius: 20px;
+}
+.delta-above { background: #e8f5e9; color: var(--green); }
+.delta-below { background: #fce4ec; color: #c62828; }
+.delta-same  { background: var(--bg); color: var(--text-muted); }
+.co-rival-arrow { color: var(--text-muted); font-size: 0.75rem; transition: transform 0.2s; flex-shrink: 0; }
+.co-rival.open .co-rival-arrow { transform: rotate(180deg); }
+
+.co-rival-body { display: none; padding: 14px 16px 16px; border-top: 1px solid var(--border); background: #fafcfd; }
+.co-rival.open .co-rival-body { display: block; }
+
+/* razões */
+.reason-group { margin-bottom: 14px; }
+.reason-title {
+  font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.4px; margin-bottom: 7px;
+  display: flex; align-items: center; gap: 6px;
+}
+.reason-list { display: flex; flex-wrap: wrap; gap: 5px; }
+.reason-chip {
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 0.73rem; font-weight: 600;
+}
+.chip-green  { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+.chip-red    { background: #fce4ec; color: #c62828; border: 1px solid #f8bbd0; }
+.chip-blue   { background: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; }
+.chip-orange { background: #fff3e0; color: #e65100; border: 1px solid #ffe0b2; }
+.chip-grey   { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
+
+.co-summary {
+  background: #fffbf0; border: 1px solid #f4d483;
+  border-radius: var(--radius-sm); padding: 13px 16px;
+  font-size: 0.83rem; color: #5d4000; line-height: 1.6; margin-bottom: 0;
+}
+.co-summary strong { color: #7a4f00; }
+.no-rivals { text-align:center; padding: 28px; color: var(--text-muted); font-size: 0.88rem; }
+
 /* ─────────────────────────────── FOOTER ────────────────────────────────── */
 .site-footer {
   text-align: center; padding: 28px 16px;
@@ -718,6 +837,28 @@ body {
   </div>
 
 </div>
+
+  <!-- ─── COMPARATIVO ─────────────────────────────────────────────────── -->
+  <div class="compare-wrap" id="compare-wrap">
+    <div class="compare-card">
+      <div class="compare-head">
+        <div class="compare-icon-box">🔍</div>
+        <div class="compare-head-text">
+          <h3>Por que outras doenças ficaram à frente?</h3>
+          <small>Selecione a doença que você suspeita e veja a análise comparativa com os diagnósticos mais prováveis</small>
+        </div>
+      </div>
+      <div class="compare-body">
+        <div class="compare-select-label">Doença que você suspeita</div>
+        <select class="compare-select" id="compare-select" onchange="gerarComparativo()">
+          <option value="">— Selecione uma doença para comparar —</option>
+        </select>
+        <div class="compare-output" id="compare-output"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /page-body -->
 
 <!-- ═══════════════════════ FOOTER ══════════════════════════════════════ -->
 <footer class="site-footer">
@@ -1112,7 +1253,204 @@ function analisar() {
   const wrap = document.getElementById('results-wrap');
   wrap.classList.add('visible');
   document.getElementById('st5').classList.add('active');
+
+  // Populate compare selector
+  const sel = document.getElementById('compare-select');
+  sel.innerHTML = '<option value="">— Selecione uma doença para comparar —</option>';
+  res.forEach((r, i) => {
+    const opt = document.createElement('option');
+    opt.value = r.d.id;
+    opt.textContent = `${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)} ${r.d.nome} — ${r.pct}%`;
+    sel.appendChild(opt);
+  });
+  document.getElementById('compare-output').classList.remove('show');
+  document.getElementById('compare-wrap').classList.add('visible');
+
+  // Store results globally for comparativo
+  window._lastResults = res;
+
   setTimeout(() => wrap.scrollIntoView({behavior:'smooth', block:'start'}), 80);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   COMPARATIVO
+══════════════════════════════════════════════════════════════════════════ */
+function gerarComparativo() {
+  const selId = parseInt(document.getElementById('compare-select').value);
+  const output = document.getElementById('compare-output');
+
+  if (!selId || !window._lastResults) {
+    output.classList.remove('show');
+    return;
+  }
+
+  const res = window._lastResults;
+  const target = res.find(r => r.d.id === selId);
+  if (!target) { output.classList.remove('show'); return; }
+
+  // Rivals: diseases that scored higher than target (up to 5)
+  const rivals = res.filter(r => r.d.id !== selId && r.pct >= target.pct - 5)
+                    .slice(0, 5);
+
+  // Build target header
+  const rankIdx = res.findIndex(r => r.d.id === selId);
+  const rankEmoji = rankIdx === 0 ? '🥇' : rankIdx === 1 ? '🥈' : rankIdx === 2 ? '🥉' : `#${rankIdx+1}`;
+
+  // Signs the target disease has that are NOT present in the patient
+  const targetSintRows = SINT.filter(r => r.id === selId);
+  const ausentes = targetSintRows
+    .filter(r => !selSint.has(r.s))
+    .sort((a,b) => b.p - a.p)
+    .slice(0, 6)
+    .map(r => fmtLabel(r.s));
+
+  // Exams the target disease relies on that weren't selected
+  const targetExamRows = EXAM.filter(r => r.id === selId);
+  const examesAusentes = targetExamRows
+    .filter(r => !selExam.has(r.g))
+    .sort((a,b) => b.p - a.p)
+    .slice(0, 4)
+    .map(r => EXAM_GROUPS.find(g => g.id === r.g)?.label || r.g);
+
+  // Age / breed mismatch
+  const ageOk   = target.bIdade;
+  const breedOk = target.bRaca;
+
+  // Build rival comparisons
+  function buildRival(r, idx) {
+    const delta = r.pct - target.pct;
+    const deltaClass = delta > 0 ? 'delta-above' : delta < 0 ? 'delta-below' : 'delta-same';
+    const deltaText  = delta > 0 ? `+${delta}%` : delta < 0 ? `${delta}%` : 'Empate';
+    const rIdx = res.findIndex(x => x.d.id === r.d.id);
+    const rEmoji = rIdx===0?'🥇':rIdx===1?'🥈':rIdx===2?'🥉':`#${rIdx+1}`;
+
+    // Signs present in patient that match rival but NOT target
+    const rivalSintKeys = new Set(SINT.filter(x => x.id === r.d.id).map(x => x.s));
+    const targetSintKeys = new Set(SINT.filter(x => x.id === selId).map(x => x.s));
+    const exclusiveToRival = [...selSint].filter(k => rivalSintKeys.has(k) && !targetSintKeys.has(k));
+
+    // Signs present in patient that match BOTH
+    const shared = [...selSint].filter(k => rivalSintKeys.has(k) && targetSintKeys.has(k));
+
+    // Signs present in patient that match target but NOT rival
+    const exclusiveToTarget = [...selSint].filter(k => targetSintKeys.has(k) && !rivalSintKeys.has(k));
+
+    // Exam differences
+    const rivalExamKeys = new Set(EXAM.filter(x => x.id === r.d.id).map(x => x.g));
+    const targetExamKeys = new Set(EXAM.filter(x => x.id === selId).map(x => x.g));
+    const examExclRival = [...selExam].filter(k => rivalExamKeys.has(k) && !targetExamKeys.has(k));
+    const examExclTarget = [...selExam].filter(k => targetExamKeys.has(k) && !rivalExamKeys.has(k));
+
+    // Build narrative sentence
+    let narrative = '';
+    if (delta > 0) {
+      const parts = [];
+      if (exclusiveToRival.length > 0)
+        parts.push(`${exclusiveToRival.length} sinal(is) presente(s) no paciente apontam mais especificamente para <strong>${r.d.nome}</strong>`);
+      if (examExclRival.length > 0)
+        parts.push(`${examExclRival.length} exame(s) selecionado(s) têm maior relevância diagnóstica para <strong>${r.d.nome}</strong>`);
+      if (r.bRaca && !breedOk)
+        parts.push(`a raça <em>${racaSel}</em> é predisposta para <strong>${r.d.nome}</strong>, mas não para <strong>${target.d.nome}</strong>`);
+      if (r.bIdade && !ageOk)
+        parts.push(`a faixa etária selecionada (${idadeSel}) é mais típica de <strong>${r.d.nome}</strong>`);
+      if (ausentes.length > 0 && exclusiveToRival.length === 0)
+        parts.push(`sinais esperados de <strong>${target.d.nome}</strong> (como ${ausentes.slice(0,2).join(', ')}) não estão presentes`);
+      narrative = parts.length > 0
+        ? parts.join('; ') + '.'
+        : `<strong>${r.d.nome}</strong> acumulou mais pontos com os achados informados.`;
+    } else if (delta < 0) {
+      narrative = `<strong>${target.d.nome}</strong> ficou à frente desta doença com os achados atuais.`;
+    } else {
+      narrative = `Ambas as doenças têm compatibilidade igual com os achados informados.`;
+    }
+
+    const excRivalChips = exclusiveToRival.slice(0,5).map(k => `<span class="reason-chip chip-red">🔴 ${fmtLabel(k)}</span>`).join('');
+    const sharedChips   = shared.slice(0,5).map(k => `<span class="reason-chip chip-grey">⚪ ${fmtLabel(k)}</span>`).join('');
+    const exclTChips    = exclusiveToTarget.slice(0,4).map(k => `<span class="reason-chip chip-green">🟢 ${fmtLabel(k)}</span>`).join('');
+    const examRChips    = examExclRival.map(k => `<span class="reason-chip chip-blue">🔵 ${EXAM_GROUPS.find(g=>g.id===k)?.label||k}</span>`).join('');
+
+    return `
+    <div class="co-rival${idx===0?' open':''}">
+      <div class="co-rival-head" onclick="this.closest('.co-rival').classList.toggle('open')">
+        <div class="co-rival-rank">${rEmoji}</div>
+        <div class="co-rival-info">
+          <div class="co-rival-name">${r.d.nome}</div>
+          <div class="co-rival-sub">${r.d.cat} · ${r.pct}% compatibilidade</div>
+        </div>
+        <div class="co-rival-delta ${deltaClass}">${deltaText} vs sua suspeita</div>
+        <div class="co-rival-arrow">▼</div>
+      </div>
+      <div class="co-rival-body">
+        <div class="co-summary">🧠 ${narrative}</div>
+        ${excRivalChips ? `
+        <div class="reason-group" style="margin-top:12px">
+          <div class="reason-title" style="color:#c62828">🔴 Sinais presentes que favorecem <em>${r.d.nome}</em> sobre sua suspeita</div>
+          <div class="reason-list">${excRivalChips}</div>
+        </div>` : ''}
+        ${exclTChips ? `
+        <div class="reason-group" style="margin-top:10px">
+          <div class="reason-title" style="color:var(--green)">🟢 Sinais que apoiam sua suspeita (${target.d.nome})</div>
+          <div class="reason-list">${exclTChips}</div>
+        </div>` : ''}
+        ${sharedChips ? `
+        <div class="reason-group" style="margin-top:10px">
+          <div class="reason-title" style="color:var(--text-muted)">⚪ Sinais em comum (não diferenciam)</div>
+          <div class="reason-list">${sharedChips}</div>
+        </div>` : ''}
+        ${examRChips ? `
+        <div class="reason-group" style="margin-top:10px">
+          <div class="reason-title" style="color:var(--blue)">🔵 Exames que reforçam ${r.d.nome}</div>
+          <div class="reason-list">${examRChips}</div>
+        </div>` : ''}
+      </div>
+    </div>`;
+  }
+
+  // Missing signs block
+  const missingSintHtml = ausentes.length > 0
+    ? `<div class="reason-group" style="margin-top:0">
+        <div class="reason-title" style="color:var(--accent)">⚠️ Sinais esperados de ${target.d.nome} não observados no paciente</div>
+        <div class="reason-list">${ausentes.map(s=>`<span class="reason-chip chip-orange">⚠️ ${s}</span>`).join('')}</div>
+       </div>` : '';
+  const missingExamHtml = examesAusentes.length > 0
+    ? `<div class="reason-group" style="margin-top:10px">
+        <div class="reason-title" style="color:var(--text-muted)">📋 Exames relevantes para ${target.d.nome} ainda não realizados</div>
+        <div class="reason-list">${examesAusentes.map(e=>`<span class="reason-chip chip-grey">📋 ${e}</span>`).join('')}</div>
+       </div>` : '';
+  const ageMismatch = idadeSel && !ageOk
+    ? `<div class="reason-chip chip-orange" style="margin-top:8px;display:inline-block">⚠️ Faixa etária "${idadeSel}" não é a mais típica desta doença (${target.d.idade})</div>` : '';
+  const breedMismatch = racaSel && !breedOk
+    ? `<div class="reason-chip chip-orange" style="margin-top:8px;display:inline-block;margin-left:5px">⚠️ Raça "${racaSel}" não está entre as predispostas (${target.d.racas})</div>` : '';
+
+  const hasMissing = ausentes.length > 0 || examesAusentes.length > 0 || (idadeSel && !ageOk) || (racaSel && !breedOk);
+
+  output.innerHTML = `
+    <div class="co-target">
+      <div class="co-target-icon">🎯</div>
+      <div class="co-target-text">
+        <div class="co-target-label">Sua suspeita diagnóstica · ${rankEmoji} no ranking</div>
+        <div class="co-target-name">${target.d.nome}</div>
+        <div style="font-size:0.78rem;opacity:0.7;margin-top:2px">${target.d.cat} · ${target.d.desc.slice(0,70)}…</div>
+      </div>
+      <div class="co-target-score">
+        <div class="co-target-pct">${target.pct}%</div>
+        <div class="co-target-pct-lbl">compatibilidade</div>
+      </div>
+    </div>
+
+    ${hasMissing ? `
+    <div class="co-section-title">Por que o score desta doença pode estar subestimado</div>
+    ${missingSintHtml}${missingExamHtml}
+    <div style="margin-bottom:18px">${ageMismatch}${breedMismatch}</div>` : ''}
+
+    ${rivals.length > 0 ? `
+    <div class="co-section-title">Comparativo com outras doenças no ranking</div>
+    ${rivals.map((r, i) => buildRival(r, i)).join('')}
+    ` : '<div class="no-rivals">Esta doença é a melhor classificada no ranking atual.</div>'}
+  `;
+
+  output.classList.add('show');
+  setTimeout(() => output.scrollIntoView({behavior:'smooth', block:'start'}), 80);
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
