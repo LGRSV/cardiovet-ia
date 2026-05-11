@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CardioVet IA – Diagnóstico Diferencial Cardiovascular</title>
+<style>
+  :root {
+    --primary: #1a6b8a;
+    --primary-dark: #124e66;
+    --primary-light: #e8f4f8;
+    --accent: #e8534a;
+    --text: #1c2b36;
+    --text-muted: #5a7080;
+    --border: #cdd8de;
+    --bg: #f4f7f9;
+    --white: #ffffff;
+    --shadow: 0 2px 12px rgba(26,107,138,0.10);
+    --shadow-lg: 0 6px 32px rgba(26,107,138,0.14);
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 60px; }
+
+  .header { background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%); color: white; padding: 28px 24px 24px; text-align: center; box-shadow: 0 4px 16px rgba(18,78,102,0.2); }
+  .header-icon { font-size: 2.8rem; margin-bottom: 6px; }
+  .header h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.5px; }
+  .header p { font-size: 0.95rem; opacity: 0.85; margin-top: 4px; }
+  .badge-beta { display: inline-block; background: var(--accent); color: white; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; letter-spacing: 1px; vertical-align: middle; margin-left: 8px; }
+
+  .container { max-width: 960px; margin: 0 auto; padding: 28px 16px; }
+  .card { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px; margin-bottom: 20px; border: 1px solid var(--border); }
+  .card-title { font-size: 1rem; font-weight: 700; color: var(--primary-dark); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; padding-bottom: 12px; border-bottom: 2px solid var(--primary-light); }
+  .step-badge { background: var(--primary); color: white; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 800; flex-shrink: 0; }
+
+  /* SPECIES */
+  .species-grid { display: flex; gap: 14px; }
+  .species-btn { flex: 1; padding: 20px 12px; border: 2px solid var(--border); border-radius: var(--radius); background: var(--white); cursor: pointer; font-size: 1.05rem; font-weight: 600; color: var(--text-muted); transition: all 0.2s; text-align: center; }
+  .species-btn:hover { border-color: var(--primary); color: var(--primary); transform: translateY(-2px); box-shadow: var(--shadow); }
+  .species-btn.active { border-color: var(--primary); background: var(--primary-light); color: var(--primary-dark); box-shadow: 0 0 0 3px rgba(26,107,138,0.15); }
+  .species-btn .emoji { font-size: 2.2rem; display: block; margin-bottom: 6px; }
+
+  /* SEARCH & COUNTERS */
+  .search-box { position: relative; margin-bottom: 14px; }
+  .search-box input { width: 100%; padding: 10px 14px 10px 38px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 0.9rem; color: var(--text); background: var(--bg); transition: border-color 0.2s; outline: none; }
+  .search-box input:focus { border-color: var(--primary); background: white; }
+  .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
+  .row-between { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-size: 0.83rem; color: var(--text-muted); }
+  .badge-count { background: var(--primary); color: white; padding: 2px 10px; border-radius: 20px; font-weight: 700; font-size: 0.8rem; }
+  .link-clear { color: var(--accent); font-size: 0.8rem; cursor: pointer; font-weight: 600; text-decoration: underline; }
+
+  /* SINTOMA ITEMS — usando div, não label, para evitar double-click nativo */
+  .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; max-height: 320px; overflow-y: auto; padding: 4px 2px; }
+  .check-grid::-webkit-scrollbar { width: 5px; }
+  .check-grid::-webkit-scrollbar-track { background: var(--bg); border-radius: 4px; }
+  .check-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  .sint-item { display: flex; align-items: center; gap: 9px; padding: 9px 12px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); cursor: pointer; transition: all 0.15s; font-size: 0.84rem; color: var(--text); user-select: none; background: white; }
+  .sint-item:hover { border-color: var(--primary); background: var(--primary-light); }
+  .sint-item.on { border-color: var(--primary); background: var(--primary-light); color: var(--primary-dark); font-weight: 600; }
+  .chk-box { width: 18px; height: 18px; border: 2px solid var(--border); border-radius: 4px; background: white; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; font-size: 0; }
+  .sint-item.on .chk-box { background: var(--primary); border-color: var(--primary); font-size: 0.7rem; color: white; font-weight: 900; }
+  .sint-item.on .chk-box::after { content: '✓'; }
+
+  /* EXAM CARDS */
+  .exam-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); gap: 10px; }
+  .exam-card { border: 2px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; cursor: pointer; transition: all 0.15s; user-select: none; background: white; display: flex; align-items: flex-start; gap: 12px; }
+  .exam-card:hover { border-color: var(--primary); background: var(--primary-light); }
+  .exam-card.on { border-color: var(--primary); background: var(--primary-light); }
+  .exam-icon { font-size: 1.6rem; flex-shrink: 0; line-height: 1; margin-top: 2px; pointer-events: none; }
+  .exam-body { flex: 1; pointer-events: none; }
+  .exam-label { font-size: 0.88rem; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+  .exam-card.on .exam-label { color: var(--primary-dark); }
+  .exam-desc { font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; }
+  .exam-dot { width: 20px; height: 20px; border: 2px solid var(--border); border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; margin-top: 2px; transition: all 0.15s; font-size: 0; pointer-events: none; }
+  .exam-card.on .exam-dot { background: var(--primary); border-color: var(--primary); color: white; font-size: 0.7rem; font-weight: 900; }
+  .exam-card.on .exam-dot::after { content: '✓'; }
+
+  /* ANALYZE BUTTON */
+  .btn-analyze { display: block; width: 100%; padding: 16px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; border: none; border-radius: var(--radius); font-size: 1.1rem; font-weight: 700; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 14px rgba(26,107,138,0.3); }
+  .btn-analyze:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(26,107,138,0.4); }
+  .btn-analyze:active { transform: translateY(0); }
+
+  /* RESULTS */
+  .results-section { display: none; margin-top: 24px; }
+  .results-section.visible { display: block; }
+  .results-title { font-size: 1.15rem; font-weight: 700; color: var(--primary-dark); margin-bottom: 14px; }
+  .disclaimer { background: #fff8e1; border: 1px solid #ffd54f; border-radius: var(--radius-sm); padding: 10px 14px; font-size: 0.78rem; color: #5d4037; margin-bottom: 16px; }
+
+  /* DISEASE CARDS */
+  .disease-card { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 12px; box-shadow: var(--shadow); cursor: pointer; position: relative; overflow: hidden; }
+  .disease-card:hover { box-shadow: var(--shadow-lg); }
+  .disease-card.r1 { border-left: 5px solid #2e7d32; }
+  .disease-card.r2 { border-left: 5px solid #1565c0; }
+  .disease-card.r3 { border-left: 5px solid #6a1b9a; }
+  .disease-card.rx { border-left: 5px solid var(--border); }
+  .d-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  .d-name { font-size: 1.05rem; font-weight: 700; color: var(--text); }
+  .d-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 3px; }
+  .tag { padding: 2px 9px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; }
+  .t-sp { background: #e3f2fd; color: #1565c0; }
+  .t-cat { background: #f3e5f5; color: #6a1b9a; }
+  .t-r1 { background: #e8f5e9; color: #2e7d32; }
+  .t-r2 { background: #e3f2fd; color: #1565c0; }
+  .score-box { text-align: right; flex-shrink: 0; }
+  .score-pct { font-size: 1.8rem; font-weight: 800; line-height: 1; }
+  .r1 .score-pct { color: #2e7d32; }
+  .r2 .score-pct { color: #1565c0; }
+  .r3 .score-pct { color: #6a1b9a; }
+  .rx .score-pct { color: var(--text-muted); }
+  .score-lbl { font-size: 0.72rem; color: var(--text-muted); }
+  .bar-wrap { background: var(--bg); border-radius: 20px; height: 8px; margin-bottom: 12px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 20px; }
+  .r1 .bar-fill { background: linear-gradient(90deg, #43a047, #2e7d32); }
+  .r2 .bar-fill { background: linear-gradient(90deg, #42a5f5, #1565c0); }
+  .r3 .bar-fill { background: linear-gradient(90deg, #ab47bc, #6a1b9a); }
+  .rx .bar-fill { background: linear-gradient(90deg, #b0bec5, #90a4ae); }
+  .arrow { position: absolute; right: 18px; top: 20px; color: var(--text-muted); font-size: 0.85rem; transition: transform 0.2s; pointer-events: none; }
+  .disease-card.open .arrow { transform: rotate(180deg); }
+  .d-details { display: none; border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px; }
+  .disease-card.open .d-details { display: block; }
+  .d-desc { font-size: 0.84rem; color: var(--text-muted); margin-bottom: 12px; font-style: italic; }
+  .match-sec { margin-bottom: 10px; }
+  .match-lbl { font-size: 0.76rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 6px; }
+  .match-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+  .mt-s { padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+  .mt-e { padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
+
+  /* ABOUT BOX */
+  .about-box {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 24px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+    border-top: 4px solid var(--primary);
+  }
+  .about-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--primary-dark);
+    margin-bottom: 10px;
+  }
+  .about-box > p {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin-bottom: 16px;
+  }
+  .about-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .about-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.86rem;
+    color: var(--text);
+  }
+  .about-num {
+    background: var(--primary);
+    color: white;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .about-note {
+    background: #fff8e1;
+    border: 1px solid #ffd54f;
+    border-radius: var(--radius-sm);
+    padding: 9px 13px;
+    font-size: 0.78rem;
+    color: #5d4037;
+  }
+
+  @media (max-width: 600px) {
+    .header h1 { font-size: 1.5rem; }
+    .check-grid, .exam-grid { grid-template-columns: 1fr; }
+    .species-grid { gap: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-icon">🫀</div>
+  <h1>CardioVet IA <span class="badge-beta">BETA</span></h1>
+  <p>Diagnóstico Diferencial Cardiovascular Veterinário</p>
+</div>
+
+<div class="container">
+
+  <!-- DESCRIÇÃO -->
+  <div class="about-box">
+    <div class="about-title">🐾 O que é este app?</div>
+    <p>
+      O <strong>CardioVet IA</strong> é uma ferramenta de apoio ao diagnóstico diferencial cardiovascular em cães e gatos.
+      Com base em uma base de conhecimento clínico estruturada, o sistema calcula a compatibilidade entre os achados do paciente
+      e as principais doenças cardiovasculares da medicina veterinária.
+    </p>
+    <div class="about-steps">
+      <div class="about-step"><span class="about-num">1</span><span>Selecione a <strong>espécie</strong> do paciente</span></div>
+      <div class="about-step"><span class="about-num">2</span><span>Marque os <strong>sinais clínicos</strong> observados na consulta</span></div>
+      <div class="about-step"><span class="about-num">3</span><span>Indique quais <strong>exames complementares</strong> foram realizados (opcional)</span></div>
+      <div class="about-step"><span class="about-num">4</span><span>Clique em <strong>Analisar</strong> e veja o ranking de probabilidade diagnóstica</span></div>
+    </div>
+    <div class="about-note">
+      ⚠️ Esta ferramenta é um <strong>auxílio ao raciocínio clínico</strong> e não substitui a avaliação presencial do médico-veterinário.
+    </div>
+  </div>
+
+  <!-- PASSO 1 -->
+  <div class="card">
+    <div class="card-title"><div class="step-badge">1</div>Selecione a espécie do paciente</div>
+    <div class="species-grid">
+      <button class="species-btn" data-esp="cão" onclick="pickEspecie(this)">
+        <span class="emoji">🐕</span>Cão
+      </button>
+      <button class="species-btn" data-esp="gato" onclick="pickEspecie(this)">
+        <span class="emoji">🐈</span>Gato
+      </button>
+    </div>
+  </div>
+
+  <!-- PASSO 2 -->
+  <div class="card">
+    <div class="card-title"><div class="step-badge">2</div>Sinais clínicos observados</div>
+    <div class="row-between">
+      <span>Marque todos os sinais presentes:</span>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span class="badge-count" id="cnt-sint">0</span>
+        <span class="link-clear" onclick="clearSint()">Limpar</span>
+      </div>
+    </div>
+    <div class="search-box">
+      <span class="search-icon">🔎</span>
+      <input type="text" id="q-sint" placeholder="Buscar sinal clínico..." oninput="renderSint()">
+    </div>
+    <div class="check-grid" id="grid-sint"></div>
+  </div>
+
+  <!-- PASSO 3 -->
+  <div class="card">
+    <div class="card-title">
+      <div class="step-badge">3</div>
+      Exames complementares realizados
+      <span style="font-size:0.75rem;font-weight:400;color:var(--text-muted);margin-left:4px;">(opcional)</span>
+    </div>
+    <p style="font-size:0.84rem;color:var(--text-muted);margin-bottom:14px;">
+      Selecione quais exames foram realizados — isso refina a probabilidade de cada diagnóstico.
+    </p>
+    <div class="row-between">
+      <span>Exames selecionados:</span>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span class="badge-count" id="cnt-exam">0</span>
+        <span class="link-clear" onclick="clearExam()">Limpar</span>
+      </div>
+    </div>
+    <div class="exam-grid" id="grid-exam"></div>
+  </div>
+
+  <!-- BOTÃO -->
+  <button class="btn-analyze" onclick="analisar()">🔬 Analisar e Gerar Diagnóstico Diferencial</button>
+
+  <!-- RESULTADOS -->
+  <div class="results-section" id="results-section">
+    <div class="results-title">📊 Diagnóstico Diferencial – Ranking de Probabilidade</div>
+    <div class="disclaimer">
+      ⚠️ Esta ferramenta é um <strong>apoio ao raciocínio clínico</strong> e não substitui a avaliação veterinária. Os scores refletem compatibilidade com a base de dados e devem ser interpretados junto ao contexto clínico completo.
+    </div>
+    <div id="results-list"></div>
+  </div>
+
+</div>
+
+<script>
+/* ── BASE DE DADOS ────────────────────────────────────────────────────── */
+const DOENCAS = [
+  {id:1,  nome:"Persistência do Ducto Arterioso",    esp:"cão,gato", cat:"Congênita",      desc:"Comunicação persistente entre a aorta e a artéria pulmonar após o nascimento."},
+  {id:2,  nome:"Estenose Pulmonar",                  esp:"cão,gato", cat:"Congênita",      desc:"Obstrução do fluxo de saída do ventrículo direito, geralmente em nível valvar."},
+  {id:3,  nome:"Estenose Subaórtica",                esp:"cão,gato", cat:"Congênita",      desc:"Obstrução subvalvar no trato de saída do ventrículo esquerdo."},
+  {id:4,  nome:"Cardiomiopatia Dilatada",            esp:"cão",      cat:"Cardiomiopatia", desc:"Dilatação das câmaras cardíacas com redução da contratilidade sistólica."},
+  {id:5,  nome:"Cardiomiopatia Hipertrófica",        esp:"gato",     cat:"Cardiomiopatia", desc:"Espessamento concêntrico do ventrículo esquerdo com disfunção diastólica."},
+  {id:6,  nome:"Cardiomiopatia Restritiva",          esp:"gato",     cat:"Cardiomiopatia", desc:"Rigidez ventricular por fibrose endocárdica/subendocárdica ou miocárdica."},
+  {id:7,  nome:"Doença Valvar Degenerativa Mitral",  esp:"cão",      cat:"Valvar",         desc:"Degeneração mixomatosa da valva mitral com regurgitação progressiva."},
+  {id:8,  nome:"Insuficiência Tricúspide",           esp:"cão,gato", cat:"Valvar",         desc:"Regurgitação tricúspide, incluindo casos congênitos como displasia valvar tricúspide."},
+  {id:9,  nome:"Endocardite Infecciosa",             esp:"cão,gato", cat:"Valvar",         desc:"Colonização infecciosa de válvulas cardíacas e/ou endocárdio mural."},
+  {id:10, nome:"Derrame Pericárdico",                esp:"cão",      cat:"Pericárdio",     desc:"Acúmulo de líquido no saco pericárdico podendo evoluir para tamponamento."},
+  {id:11, nome:"Tamponamento Cardíaco",              esp:"cão",      cat:"Pericárdio",     desc:"Comprometimento do enchimento diastólico por pressão intrapericárdica elevada."},
+  {id:12, nome:"Pericardite",                        esp:"cão,gato", cat:"Pericárdio",     desc:"Inflamação do pericárdio, podendo ser constritiva, infecciosa, inflamatória ou idiopática."},
+  {id:13, nome:"Fibrilação Atrial",                  esp:"cão,gato", cat:"Arritmia",       desc:"Atividade elétrica atrial desorganizada com resposta ventricular irregular."},
+  {id:14, nome:"Taquicardia Ventricular",            esp:"cão,gato", cat:"Arritmia",       desc:"Arritmia originada nos ventrículos com QRS largo e frequência elevada."},
+  {id:15, nome:"Bloqueio Atrioventricular",          esp:"cão,gato", cat:"Arritmia",       desc:"Falha ou atraso na condução elétrica entre átrios e ventrículos."}
+];
+
+const SINT = [
+  {id:1,s:"sopro_continuo_maquinaria",p:5},{id:1,s:"intolerancia_exercicio",p:3},{id:1,s:"taquipneia",p:3},{id:1,s:"dispneia",p:4},{id:1,s:"tosse",p:2},{id:1,s:"baixo_ganho_ponderal",p:3},{id:1,s:"fraqueza",p:2},{id:1,s:"edema_pulmonar",p:3},
+  {id:2,s:"intolerancia_exercicio",p:4},{id:2,s:"sincope",p:4},{id:2,s:"dispneia",p:3},{id:2,s:"ascite",p:2},{id:2,s:"cianose",p:3},{id:2,s:"sopro_sistolico_base_esquerda",p:5},{id:2,s:"fraqueza",p:3},
+  {id:3,s:"intolerancia_exercicio",p:4},{id:3,s:"sincope",p:5},{id:3,s:"fraqueza",p:3},{id:3,s:"arritmia",p:3},{id:3,s:"morte_subita",p:4},{id:3,s:"sopro_sistolico_base_direita",p:5},
+  {id:4,s:"dispneia",p:5},{id:4,s:"tosse",p:4},{id:4,s:"taquipneia",p:4},{id:4,s:"intolerancia_exercicio",p:4},{id:4,s:"letargia",p:4},{id:4,s:"sincope",p:3},{id:4,s:"pulsos_fracos",p:3},{id:4,s:"deficit_de_pulso",p:3},{id:4,s:"palidez_ou_cianose",p:3},{id:4,s:"extremidades_frias",p:3},{id:4,s:"tempo_perfusao_capilar_aumentado",p:3},{id:4,s:"caquexia_cardiaca",p:4},{id:4,s:"ascite",p:3},{id:4,s:"edema_periferico",p:3},
+  {id:5,s:"taquipneia",p:5},{id:5,s:"dispneia",p:5},{id:5,s:"edema_pulmonar",p:4},{id:5,s:"derrame_pleural",p:4},{id:5,s:"tosse",p:2},{id:5,s:"paralisia_membros_posteriores",p:4},{id:5,s:"dor_aguda_intensa",p:4},{id:5,s:"pulsos_femorais_ausentes_ou_fracos",p:4},{id:5,s:"sopro_cardiaco_sistolico",p:3},{id:5,s:"efusao_pleural",p:4},{id:5,s:"hipertensao",p:3},{id:5,s:"sincope",p:3},
+  {id:6,s:"dispneia",p:5},{id:6,s:"taquipneia",p:5},{id:6,s:"letargia",p:4},{id:6,s:"sopro_holossistolico_apice_esquerdo",p:3},{id:6,s:"intolerancia_exercicio",p:3},{id:6,s:"sincope",p:3},{id:6,s:"tosse_seca",p:2},{id:6,s:"caquexia",p:3},{id:6,s:"hiporexia",p:3},{id:6,s:"cianose",p:2},{id:6,s:"fraqueza",p:3},{id:6,s:"ascite",p:3},{id:6,s:"derrame_pleural",p:4},{id:6,s:"distensao_abdominal",p:3},{id:6,s:"efusao_pleural",p:4},{id:6,s:"anorexia",p:3},{id:6,s:"caquexia_cardiaca",p:3},
+  {id:7,s:"sopro_holossistolico_apice_esquerdo",p:5},{id:7,s:"intolerancia_exercicio",p:4},{id:7,s:"sincope",p:3},{id:7,s:"tosse_seca",p:3},{id:7,s:"caquexia",p:3},{id:7,s:"hiporexia",p:3},{id:7,s:"taquipneia",p:4},{id:7,s:"dispneia",p:4},{id:7,s:"edema_pulmonar",p:4},{id:7,s:"cianose",p:2},{id:7,s:"fraqueza",p:3},{id:7,s:"ascite",p:2},
+  {id:8,s:"sopro_holossistolico_apice_direito",p:5},{id:8,s:"arritmias_atriais",p:3},{id:8,s:"taquicardia_supraventricular",p:3},{id:8,s:"derrame_pleural",p:3},{id:8,s:"intolerancia_exercicio",p:3},{id:8,s:"distensao_abdominal",p:4},{id:8,s:"ascite",p:4},{id:8,s:"dispneia",p:3},{id:8,s:"efusao_pleural",p:3},
+  {id:9,s:"pirexia",p:4},{id:9,s:"apatia",p:4},{id:9,s:"dispneia",p:3},{id:9,s:"letargia",p:3},{id:9,s:"fraqueza",p:3},{id:9,s:"perda_de_peso",p:3},{id:9,s:"intolerancia_exercicio",p:3},{id:9,s:"dor_abdominal",p:2},{id:9,s:"sinais_gastrointestinais",p:2},{id:9,s:"paralisia_membros_pelvicos",p:3},{id:9,s:"claudicacao",p:3},{id:9,s:"edema_pulmonar",p:2},{id:9,s:"arritmias",p:3},{id:9,s:"sopro_diastolico_base_cardiaca",p:4},
+  {id:10,s:"abafamento_bulhas_cardiacas",p:5},{id:10,s:"pulso_paradoxal",p:4},{id:10,s:"veia_jugular_distendida",p:4},{id:10,s:"ascite",p:4},{id:10,s:"sincope",p:3},{id:10,s:"taquipneia_ou_dispneia",p:4},{id:10,s:"mucosas_palidas_ou_cianoticas",p:3},{id:10,s:"letargia",p:4},{id:10,s:"intolerancia_exercicio",p:3},{id:10,s:"anorexia_ou_hiporexia",p:3},
+  {id:11,s:"pulso_paradoxal",p:5},{id:11,s:"abafamento_bulhas_cardiacas",p:5},{id:11,s:"veia_jugular_distendida",p:5},{id:11,s:"ascite_subita",p:4},{id:11,s:"mucosas_palidas",p:4},{id:11,s:"tempo_perfusao_capilar_prolongado",p:4},{id:11,s:"taquicardia",p:4},{id:11,s:"taquipneia",p:4},{id:11,s:"sincope",p:4},
+  {id:12,s:"atrito_pericardico",p:5},{id:12,s:"veia_jugular_distendida",p:4},{id:12,s:"hipofonese_bulhas",p:4},{id:12,s:"pulso_paradoxal",p:4},{id:12,s:"refluxo_hepatojugular",p:4},{id:12,s:"hipotensao",p:3},{id:12,s:"ascite",p:4},{id:12,s:"taquipneia",p:3},{id:12,s:"tosse",p:2},{id:12,s:"fraqueza",p:3},{id:12,s:"sincope",p:3},{id:12,s:"colapso",p:3},
+  {id:13,s:"deficit_de_pulso",p:5},{id:13,s:"morte_subita",p:3},{id:13,s:"intolerancia_exercicio",p:4},{id:13,s:"taquicardia",p:4},{id:13,s:"ritmo_irregular",p:5},{id:13,s:"fraqueza",p:4},{id:13,s:"sincope",p:3},{id:13,s:"colapso",p:3},
+  {id:14,s:"deficit_de_pulso",p:4},{id:14,s:"morte_subita",p:4},{id:14,s:"taquicardia",p:5},{id:14,s:"ritmo_irregular",p:4},{id:14,s:"sincope",p:4},{id:14,s:"intolerancia_exercicio",p:3},{id:14,s:"letargia",p:3},{id:14,s:"fraqueza",p:3},{id:14,s:"colapso",p:4},
+  {id:15,s:"bradicardia_severa",p:5},{id:15,s:"sincope",p:5},{id:15,s:"intolerancia_exercicio",p:4},{id:15,s:"letargia",p:4},{id:15,s:"fraqueza",p:4},{id:15,s:"tosse",p:2},{id:15,s:"dificuldade_respiratoria",p:2}
+];
+
+const EXAM = [
+  {id:1,g:"ecocardiograma",p:5},{id:1,g:"doppler",p:5},{id:1,g:"radiografia",p:4},{id:1,g:"ecg",p:3},
+  {id:2,g:"ecocardiograma",p:5},{id:2,g:"doppler",p:5},{id:2,g:"radiografia",p:4},{id:2,g:"ecg",p:3},
+  {id:3,g:"ecocardiograma",p:5},{id:3,g:"doppler",p:5},{id:3,g:"radiografia",p:3},{id:3,g:"ecg",p:3},{id:3,g:"troponina",p:3},
+  {id:4,g:"ecocardiograma",p:5},{id:4,g:"radiografia",p:5},{id:4,g:"ecg",p:4},{id:4,g:"ntprobnp",p:4},
+  {id:5,g:"ecocardiograma",p:5},{id:5,g:"radiografia",p:4},{id:5,g:"ecg",p:2},{id:5,g:"ntprobnp",p:4},
+  {id:6,g:"ecocardiograma",p:5},{id:6,g:"radiografia",p:4},{id:6,g:"ecg",p:3},{id:6,g:"ntprobnp",p:4},
+  {id:7,g:"ecocardiograma",p:5},{id:7,g:"doppler",p:5},{id:7,g:"radiografia",p:4},{id:7,g:"ntprobnp",p:4},{id:7,g:"ecg",p:2},
+  {id:8,g:"ecocardiograma",p:5},{id:8,g:"doppler",p:5},{id:8,g:"radiografia",p:4},{id:8,g:"ecg",p:2},
+  {id:9,g:"ecocardiograma",p:5},{id:9,g:"doppler",p:4},{id:9,g:"hemocultura",p:5},{id:9,g:"antibiograma",p:4},{id:9,g:"hemograma",p:3},{id:9,g:"bioquimica",p:3},{id:9,g:"radiografia",p:2},{id:9,g:"ecg",p:2},
+  {id:10,g:"ecocardiograma",p:5},{id:10,g:"ecg",p:4},{id:10,g:"radiografia",p:4},
+  {id:11,g:"ecocardiograma",p:5},{id:11,g:"ecg",p:5},{id:11,g:"radiografia",p:4},
+  {id:12,g:"ecocardiograma",p:5},{id:12,g:"ecg",p:3},{id:12,g:"radiografia",p:4},{id:12,g:"hemograma",p:3},
+  {id:13,g:"ecg",p:5},{id:13,g:"ecocardiograma",p:4},{id:13,g:"radiografia",p:3},{id:13,g:"ntprobnp",p:3},
+  {id:14,g:"ecg",p:5},{id:14,g:"holter",p:4},{id:14,g:"ecocardiograma",p:3},{id:14,g:"troponina",p:3},{id:14,g:"ntprobnp",p:3},
+  {id:15,g:"ecg",p:5},{id:15,g:"holter",p:4},{id:15,g:"ecocardiograma",p:2},{id:15,g:"radiografia",p:2}
+];
+
+const EXAM_GROUPS = [
+  {id:"ecocardiograma", label:"Ecocardiograma",          icon:"🫀", desc:"Avaliação estrutural e funcional do coração por ultrassom"},
+  {id:"doppler",        label:"Ecocardiograma Doppler",   icon:"📡", desc:"Avaliação dos fluxos intracardíacos e gradientes de pressão"},
+  {id:"ecg",            label:"Eletrocardiograma (ECG)",  icon:"📈", desc:"Registro da atividade elétrica cardíaca e identificação de arritmias"},
+  {id:"holter",         label:"Holter 24h",               icon:"⌚", desc:"Monitorização eletrocardiográfica ambulatorial contínua"},
+  {id:"radiografia",    label:"Radiografia Torácica",     icon:"🩻", desc:"Avaliação da silhueta cardíaca e campos pulmonares"},
+  {id:"ntprobnp",       label:"NT-proBNP / BNP",          icon:"📊", desc:"Biomarcador de insuficiência cardíaca e sobrecarga de pressão"},
+  {id:"troponina",      label:"Troponina Cardíaca",       icon:"🧪", desc:"Marcador sérico de lesão e necrose miocárdica"},
+  {id:"hemograma",      label:"Hemograma Completo",       icon:"🩸", desc:"Avaliação das células sanguíneas e perfil inflamatório"},
+  {id:"bioquimica",     label:"Bioquímica Sérica",        icon:"🔬", desc:"Perfil metabólico: função renal, hepática e eletrólitos"},
+  {id:"hemocultura",    label:"Hemocultura",              icon:"🧫", desc:"Cultura sanguínea para identificação de agentes infecciosos"},
+  {id:"antibiograma",   label:"Antibiograma",             icon:"💊", desc:"Teste de sensibilidade antimicrobiana após hemocultura"},
+];
+
+/* ── ESTADO ──────────────────────────────────────────────────────────── */
+let especie = null;
+const selSint = new Set();
+const selExam = new Set();
+
+/* ── HELPERS ─────────────────────────────────────────────────────────── */
+function fmtLabel(s) {
+  return s.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function uniqueSint() {
+  const m = new Map();
+  SINT.forEach(r => { if (!m.has(r.s)) m.set(r.s, fmtLabel(r.s)); });
+  return [...m.entries()].sort((a,b) => a[1].localeCompare(b[1]));
+}
+
+/* ── SINTOMAS ─────────────────────────────────────────────────────────── */
+function renderSint() {
+  const q = document.getElementById('q-sint').value.toLowerCase();
+  const items = uniqueSint().filter(([k,v]) => !q || v.toLowerCase().includes(q));
+  const grid = document.getElementById('grid-sint');
+
+  if (!items.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1;padding:14px;color:var(--text-muted);font-size:0.85rem;">Nenhum resultado para "${q}"</div>`;
+    return;
+  }
+
+  grid.innerHTML = items.map(([key, label]) =>
+    `<div class="sint-item${selSint.has(key)?' on':''}" data-k="${key}">
+       <div class="chk-box"></div>
+       <span>${label}</span>
+     </div>`
+  ).join('');
+
+  // eventos sem usar <label> para evitar double-fire do browser
+  grid.querySelectorAll('.sint-item').forEach(el => {
+    el.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const k = this.getAttribute('data-k');
+      if (selSint.has(k)) selSint.delete(k); else selSint.add(k);
+      document.getElementById('cnt-sint').textContent = selSint.size;
+      this.classList.toggle('on', selSint.has(k));
+      this.querySelector('.chk-box').style.cssText = '';
+    });
+  });
+}
+
+function clearSint() {
+  selSint.clear();
+  document.getElementById('cnt-sint').textContent = 0;
+  renderSint();
+}
+
+/* ── EXAMES ──────────────────────────────────────────────────────────── */
+function renderExam() {
+  document.getElementById('grid-exam').innerHTML = EXAM_GROUPS.map(g =>
+    `<div class="exam-card${selExam.has(g.id)?' on':''}" data-eid="${g.id}">
+       <div class="exam-icon">${g.icon}</div>
+       <div class="exam-body">
+         <div class="exam-label">${g.label}</div>
+         <div class="exam-desc">${g.desc}</div>
+       </div>
+       <div class="exam-dot"></div>
+     </div>`
+  ).join('');
+
+  document.getElementById('grid-exam').querySelectorAll('.exam-card').forEach(el => {
+    el.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = this.getAttribute('data-eid');
+      if (selExam.has(id)) selExam.delete(id); else selExam.add(id);
+      document.getElementById('cnt-exam').textContent = selExam.size;
+      this.classList.toggle('on', selExam.has(id));
+    });
+  });
+}
+
+function clearExam() {
+  selExam.clear();
+  document.getElementById('cnt-exam').textContent = 0;
+  renderExam();
+}
+
+/* ── ESPÉCIE ──────────────────────────────────────────────────────────── */
+function pickEspecie(btn) {
+  document.querySelectorAll('.species-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  especie = btn.getAttribute('data-esp');
+}
+
+/* ── SCORING ─────────────────────────────────────────────────────────── */
+function calcular() {
+  return DOENCAS.map(d => {
+    // filtro espécie
+    if (especie && !d.esp.split(',').map(s=>s.trim()).includes(especie)) return null;
+
+    // sintomas
+    const sdList = SINT.filter(r => r.id === d.id);
+    const maxS   = sdList.reduce((a,r) => a+r.p, 0);
+    let scoreS = 0, matchS = [];
+    sdList.forEach(r => {
+      if (selSint.has(r.s)) { scoreS += r.p; matchS.push(fmtLabel(r.s)); }
+    });
+    const pctS = maxS > 0 ? scoreS / maxS : 0;
+
+    // exames — normaliza separadamente
+    const exList = EXAM.filter(r => r.id === d.id);
+    const maxE   = exList.reduce((a,r) => a+r.p, 0);
+    let scoreE = 0, matchE = [];
+    selExam.forEach(gid => {
+      const row = exList.find(r => r.g === gid);
+      if (row) { scoreE += row.p; matchE.push(EXAM_GROUPS.find(g=>g.id===gid)?.label || gid); }
+    });
+    const pctE = maxE > 0 ? scoreE / maxE : 0;
+
+    // combinação: se não há exames selecionados usa só sintomas; caso contrário média ponderada
+    const pct = selExam.size === 0
+      ? Math.round(pctS * 100)
+      : Math.round((pctS * 0.6 + pctE * 0.4) * 100);
+
+    return { d, pct, scoreS, scoreE, matchS, matchE };
+  })
+  .filter(Boolean)
+  .sort((a,b) => b.pct - a.pct || b.scoreS - a.scoreS);
+}
+
+/* ── ANALISAR ─────────────────────────────────────────────────────────── */
+function analisar() {
+  if (selSint.size === 0 && selExam.size === 0) {
+    alert('Selecione pelo menos um sinal clínico ou exame para analisar.');
+    return;
+  }
+
+  const res = calcular();
+  const lista = document.getElementById('results-list');
+
+  if (!res.length) {
+    lista.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted);">Nenhuma doença encontrada para a espécie selecionada.</div>`;
+  } else {
+    lista.innerHTML = res.map((r, i) => {
+      const rc   = i===0?'r1':i===1?'r2':i===2?'r3':'rx';
+      const rtag = i===0?'<span class="tag t-r1">⭐ Mais Provável</span>':i===1?'<span class="tag t-r2">2º Provável</span>':'';
+      const esps = r.d.esp.split(',').map(s=>`<span class="tag t-sp">${s.trim()}</span>`).join('');
+      const stags = r.matchS.map(s=>`<span class="mt-s">🩺 ${s}</span>`).join('');
+      const etags = r.matchE.map(e=>`<span class="mt-e">🔬 ${e}</span>`).join('');
+      return `
+      <div class="disease-card ${rc}" data-open="0">
+        <span class="arrow">▼</span>
+        <div class="d-header">
+          <div>
+            <div class="d-name">${r.d.nome}</div>
+            <div class="d-meta">${esps}<span class="tag t-cat">${r.d.cat}</span>${rtag}</div>
+          </div>
+          <div class="score-box">
+            <div class="score-pct">${r.pct}%</div>
+            <div class="score-lbl">compatibilidade</div>
+          </div>
+        </div>
+        <div class="bar-wrap"><div class="bar-fill" style="width:${r.pct}%"></div></div>
+        <div class="d-details">
+          <p class="d-desc">${r.d.desc}</p>
+          ${stags ? `<div class="match-sec"><div class="match-lbl">✅ Sinais compatíveis (${r.matchS.length})</div><div class="match-tags">${stags}</div></div>` : '<div class="match-sec"><div class="match-lbl" style="color:#bbb">Nenhum sinal clínico selecionado compatível</div></div>'}
+          ${etags ? `<div class="match-sec"><div class="match-lbl">✅ Exames com achados esperados (${r.matchE.length})</div><div class="match-tags">${etags}</div></div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+
+    // click para expandir detalhes — atribuído após render
+    lista.querySelectorAll('.disease-card').forEach(card => {
+      card.addEventListener('click', function(e) {
+        e.stopPropagation();
+        this.classList.toggle('open');
+      });
+    });
+  }
+
+  const sec = document.getElementById('results-section');
+  sec.classList.add('visible');
+  sec.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+/* ── INIT ─────────────────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  renderSint();
+  renderExam();
+});
+</script>
+</body>
+</html>
