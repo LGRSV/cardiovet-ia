@@ -2,16 +2,26 @@
 (function () {
   'use strict';
   var C = window.AtenaCalc, G = window.AtenaGraficos, fmt = G.fmt, esc = G.esc;
-  var CHAVE = 'atena.v1', CHAVE_META = 'atena.meta';
+  var CHAVE = 'atena.v2', CHAVE_V1 = 'atena.v1', CHAVE_META = 'atena.meta';
+  var NOMES = { piloto: 'Piloto', oficial: 'Oficial' };
+  var cont = 0;
   var XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
   var tela = document.getElementById('tela'), dialogo = document.getElementById('dialogo'), formulario = document.getElementById('formulario');
-  var estado = carregar(), meta = lerMeta(), aba = 'inicio';
+  var meta = lerMeta(), banco = carregarBanco(), estado = banco.conjuntos[banco.ativo], aba = 'inicio';
   var visao = { carcaca: 'todas', ate15: false, spGrupo: 'total', spVar: 'tmed', filtroTriagem: '' };
 
   /* ---------- armazenamento ---------- */
-  function carregar() {
-    try { var t = localStorage.getItem(CHAVE); if (t) return normalizar(JSON.parse(t)); } catch (e) { /* sem armazenamento */ }
-    return C.estadoVazio();
+  function carregarBanco() {
+    var b = null;
+    try { var t = localStorage.getItem(CHAVE); if (t) b = JSON.parse(t); } catch (e) { /* sem armazenamento */ }
+    if (!b || !b.conjuntos) {
+      b = { app: 'atena', versao: 2, ativo: 'piloto', conjuntos: {} };
+      /* migracao da V1: o que ja estava gravado vira o conjunto Piloto; a chave antiga continua guardada como copia */
+      try { var v1 = localStorage.getItem(CHAVE_V1); if (v1) { b.conjuntos.piloto = JSON.parse(v1); b.migradoDaV1 = new Date().toISOString(); } } catch (e2) { /* ignora */ }
+    }
+    ['piloto', 'oficial'].forEach(function (k) { b.conjuntos[k] = normalizar(b.conjuntos[k]); });
+    if (!NOMES[b.ativo]) b.ativo = 'piloto';
+    return b;
   }
   function lerMeta() { try { return JSON.parse(localStorage.getItem(CHAVE_META)) || {}; } catch (e) { return {}; } }
   function normalizar(e) {
@@ -20,16 +30,17 @@
     ['coletas', 'triagem', 'fases'].forEach(function (k) { if (Array.isArray(e[k])) v[k] = e[k]; });
     if (Array.isArray(e.taxons) && e.taxons.length) v.taxons = e.taxons.filter(function (t) { return t && t.taxon; });
     v.exemplo = !!e.exemplo;
+    v.config = C.lerConfig(e);
     v.coletas.concat(v.triagem).forEach(function (o) { if (!o.id) o.id = novoId(); o.carcaca = String(o.carcaca == null ? '' : o.carcaca); });
     return v;
   }
   function salvar(silencioso) {
-    try { localStorage.setItem(CHAVE, JSON.stringify(estado)); }
+    banco.conjuntos[banco.ativo] = estado;
+    try { localStorage.setItem(CHAVE, JSON.stringify(banco)); }
     catch (e) { avisar('Não foi possível gravar neste aparelho. Exporte um backup agora.'); }
     if (!silencioso) desenhar();
   }
   function salvarMeta() { try { localStorage.setItem(CHAVE_META, JSON.stringify(meta)); } catch (e) { /* ignora */ } }
-  var cont = 0;
   function novoId() { return 'r' + Date.now().toString(36) + (cont++).toString(36) + Math.floor(Math.random() * 1296).toString(36); }
 
   /* ---------- utilidades ---------- */
@@ -53,18 +64,22 @@
   /* ---------- telas ---------- */
   function desenhar() {
     document.getElementById('selo-exemplo').hidden = !estado.exemplo;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-conjunto]'), function (b) {
+      var on = b.dataset.conjunto === banco.ativo; b.classList.toggle('ativo', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
     Array.prototype.forEach.call(document.querySelectorAll('.abas button'), function (b) { b.classList.toggle('ativa', b.dataset.aba === aba); });
     ({ inicio: telaInicio, coletas: telaColetas, triagem: telaTriagem, resultados: telaResultados, mais: telaMais })[aba]();
   }
 
   function telaInicio() {
-    var r = C.calcular(estado), s = r.resumo, h = '<h1>Resumo da pesquisa</h1>';
+    var r = C.calcular(estado), s = r.resumo, h = '<h1>Resumo – ' + NOMES[banco.ativo] + '</h1>';
     if (estado.exemplo) h += '<div class="alerta">Você está vendo <b>dados de exemplo fictícios</b>, só para conhecer o app. Em <b>Mais</b>, toque em “Apagar tudo e começar” antes de lançar as coletas de verdade.</div>';
     h += '<div class="grade-res">' + [[s.nColetas, 'coletas'], [s.nLotes, 'lotes triados'], [s.individuos, 'adultos coletados'], [s.taxons, 'táxons'], [s.familias, 'famílias'], [s.ordens, 'ordens']]
       .map(function (x) { return '<div class="num"><b>' + fmt(x[0]) + '</b><span>' + x[1] + '</span></div>'; }).join('') + '</div>';
     if (s.pendentes) h += '<div class="alerta">' + s.pendentes + ' lote(s) da triagem estão com data ou carcaça sem coleta lançada e ficam fora dos cálculos. Veja na aba Triagem.</div>';
     var semInt = r.coletas.filter(function (c) { return c.intervalo === null; }).length;
     if (semInt) h += '<div class="alerta">' + semInt + ' coleta(s) sem intervalo em horas: o “total por 24 h” delas não é calculado.</div>';
+    if (s.naoTriadas) h += '<div class="alerta">' + s.naoTriadas + ' coleta(s) ainda sem nenhum lote na triagem. ' + (s.foraDoSpearman ? s.foraDoSpearman + ' fica(m) de fora do Spearman e da Figura 5.' : 'Elas contam como zero adultos; para deixá-las de fora do Spearman e da Figura 5, veja Mais → Opções de cálculo.') + '</div>';
     if (!s.nColetas) h += '<div class="cartao"><h3>Por onde começar</h3><ol><li>Em <b>Coletas</b>, lance cada visita das 16h com os dados da ficha de campo.</li><li>Em <b>Triagem</b>, lance cada lote identificado no laboratório (um táxon por linha).</li><li>Em <b>Mais → Fases</b>, anote o início e o término de cada fase.</li><li>Em <b>Resultados</b>, as tabelas e as figuras do artigo se atualizam sozinhas.</li></ol><div class="linha-botoes"><button data-acao="exemplo">Ver com dados de exemplo</button></div></div>';
     h += '<div class="linha-botoes"><button class="primario" data-acao="nova-coleta">+ Nova coleta</button><button data-acao="novo-lote">+ Novo lote</button></div>';
     var ult = r.coletas[r.coletas.length - 1];
@@ -79,7 +94,7 @@
     r.coletas.slice().reverse().forEach(function (c) {
       h += '<button class="item" data-acao="editar-coleta" data-id="' + esc(c.id) + '"><span class="tit"><span>' + esc(c.dia || 'sem dia') + ' · ' + dataBR(c.data) + ' · carcaça ' + esc(c.carcaca) + '</span><span class="etq">' + esc(c.fase || 'sem fase') + '</span></span>' +
         '<span class="det">Tmáx ' + nd(c.tmax, 1) + ' · Tmín ' + nd(c.tmin, 1) + ' · Tméd ' + nd(c.tmed, 1) + ' °C · UR ' + nd(c.ur) + '% · chuva ' + nd(c.chuva, 1) + ' mm</span>' +
-        '<span class="det">' + c.total + ' adultos · ' + nd(c.por24, 1) + ' por 24 h · intervalo ' + nd(c.intervalo) + ' h' + (c.massa === 'Sim' ? ' · massa larval' : '') + '</span></button>';
+        '<span class="det">' + c.total + ' adultos · ' + nd(c.por24, 1) + ' por 24 h · intervalo ' + nd(c.intervalo) + ' h' + (c.massa === 'Sim' ? ' · massa larval' : '') + (c.triada ? '' : ' · ainda sem triagem') + (c.entra ? '' : ' · fora do Spearman e da Figura 5') + '</span></button>';
     });
     tela.innerHTML = h;
   }
@@ -101,6 +116,8 @@
     tela.innerHTML = h;
   }
 
+  var NOTA_FORMICIDAE = '<details><summary>Formicidae (formigas) entra na Tabela 5?</summary><p><b>O que é.</b> Formicidae é a família das formigas. Em carcaças elas aparecem do começo ao fim: comem tecidos e líquidos, predam ovos e larvas de moscas e podem atrasar a decomposição e deixar marcas na pele. São parte da fauna e ficam na lista, na composição por fase, na constância e na dominância.</p><p><b>Por que fica desligada na correlação, por padrão.</b> Formiga é inseto social: quando uma operária acha a carcaça, recruta o ninho inteiro. O número que cai no pitfall depende muito de haver um ninho por perto e do recrutamento, e pouco do clima daquele dia; as contagens vêm em blocos e não são independentes. A armadilha Shannon, que pega os voadores, quase não captura formigas. Por isso a correlação da abundância de formigas com temperatura, umidade e chuva é difícil de interpretar. O guia de resultados também não lista Formicidae na Tabela 5.</p><p><b>O que o app faz.</b> A linha Formicidae só aparece se você marcar “Incluir Formicidae”. A tabela mostra sempre duas linhas de total: “Total” (todos os adultos, igual à planilha) e “Total sem Formicidae”, para ver se as formigas mudam a conclusão. Qual das duas vai para o artigo é decisão para confirmar com o orientador. As fontes e o que foi conferido estão no arquivo Notas do especialista.</p></details>';
+
   /* ---------- resultados ---------- */
   function tabela(cab, linhas, legenda) {
     return '<div class="rolagem"><table><thead><tr>' + cab.map(function (c, i) { return '<th' + (i === 0 ? ' class="esq"' : '') + '>' + c + '</th>'; }).join('') + '</tr></thead><tbody>' + linhas.join('') + '</tbody></table></div>' + (legenda ? '<p class="legenda-tab">' + legenda + '</p>' : '');
@@ -118,10 +135,10 @@
     r.carcacas.forEach(function (cc) {
       if (r.carcacas.length > 1) l1.push('<tr class="grupo"><td colspan="8">Carcaça ' + esc(cc) + '</td></tr>');
       r.fases.filter(function (f) { return f.carcaca === cc; }).forEach(function (f) {
-        l1.push(tr([esc(f.fase), f.inicio ? dataBR(f.inicio) + ' a ' + dataBR(f.termino) : '–', nd(f.duracao), f.nColetas, nd(f.tmed, 1), nd(f.ur, 1), nd(f.chuva, 1), f.adultos]));
+        l1.push(tr([esc(f.fase), f.inicio ? dataBR(f.inicio) + ' a ' + dataBR(f.termino) : '–', nd(f.duracao, f.duracao % 1 ? 1 : 0) + (f.duracaoOrigem === 'manual' ? ' <span class="sub">(manual)</span>' : ''), f.nColetas, nd(f.tmed, 1), nd(f.ur, 1), nd(f.chuva, 1), f.adultos]));
       });
     });
-    h += tabela(['Fase', 'Período', 'Duração (dias)', 'Coletas', 'T média (°C)', 'UR média (%)', 'Chuva (mm)', 'Adultos'], l1, 'Duração = término − início. Temperatura e UR = média das coletas da fase; chuva = soma. Datas em Mais → Fases.');
+    h += tabela(['Fase', 'Período', 'Duração (dias)', 'Coletas', 'T média (°C)', 'UR média (%)', 'Chuva (mm)', 'Adultos'], l1, 'Regra da duração: ' + esc(r.regraDuracao) + '. “(manual)” = duração digitada em Mais → Fases. Temperatura e UR = média das coletas da fase; chuva = soma.');
 
     /* Tabela 2 */
     h += '<h2>Tabela 2 – Lista sistemática e frequência por fase</h2>';
@@ -140,7 +157,7 @@
     h += '<h2>Tabela 3 – Diversidade por fase</h2>';
     h += tabela(['Fase', 'Riqueza (S)', 'Indivíduos (N)', 'Shannon-Wiener (H′)', 'Simpson (1 − D)', 'Pielou (J′)'], r.indices.map(function (i) {
       return tr([esc(i.fase), i.S, i.N, nd(i.shannon, 3), nd(i.simpson, 3), nd(i.pielou, 3)]);
-    }), 'H′ e J′ com logaritmo natural.');
+    }), 'H′ e J′ com logaritmo natural (base e). Simpson na forma 1 − D, com D = Σ p² (Gini-Simpson); a forma sem viés, 1 − Σ n(n−1) ÷ [N(N−1)], sai no Excel com fórmulas.');
 
     /* Tabela 4 */
     h += '<h2>Tabela 4 – Similaridade entre fases (Jaccard)</h2>';
@@ -150,10 +167,12 @@
     }), '0 = nenhum táxon em comum; 1 = mesma composição. Só a metade de baixo da matriz.');
 
     /* Tabela 5 */
-    h += '<h2>Tabela 5 – Correlação de Spearman</h2><div class="filtros"><label><input type="checkbox" data-visao="ate15"' + (visao.ate15 ? ' checked' : '') + '> Só os 15 primeiros dias</label></div>';
-    h += tabela(['Grupo'].concat(r.spearman[0].variaveis.map(function (v) { return esc(v.nome) + ' (ρ; p)'; })), r.spearman.map(function (g) {
-      return tr([esc(g.grupo)].concat(g.variaveis.map(function (v) { return v.rho === null ? '–' : fmt(v.rho, 3) + '; ' + (v.p < 0.001 ? '&lt; 0,001' : fmt(v.p, 3)) + (v.p < 0.05 ? ' *' : ''); })));
-    }), 'Abundância de adultos padronizada por 24 h × variáveis do intervalo da coleta; n = ' + r.spearman[5].variaveis[0].n + ' coletas. * p &lt; 0,05. Valor de p pela aproximação t (a mesma do R quando há empates; sem empates e com poucas coletas, o p exato do R pode diferir um pouco). Confirme no R antes de publicar.' + (visao.carcaca === 'todas' && duas ? ' Com duas carcaças juntas, as coletas das duas entram na mesma correlação.' : ''));
+    h += '<h2>Tabela 5 – Correlação de Spearman</h2><div class="filtros"><label><input type="checkbox" data-visao="ate15"' + (visao.ate15 ? ' checked' : '') + '> Só os 15 primeiros dias</label><label><input type="checkbox" data-config="formicidaeTab5"' + (r.config.formicidaeTab5 ? ' checked' : '') + '> Incluir Formicidae</label></div>';
+    h += tabela(['Grupo'].concat(r.spearman[0].variaveis.map(function (v) { return esc(v.nome) + ' (ρ; p; n)'; })), r.spearman.filter(function (g) { return g.grupo !== 'Formicidae' || r.config.formicidaeTab5; }).map(function (g) {
+      return tr([esc(g.grupo)].concat(g.variaveis.map(function (v) { return v.rho === null ? '–; –; ' + v.n : fmt(v.rho, 3) + '; ' + (v.p < 0.001 ? '&lt; 0,001' : fmt(v.p, 3)) + (v.p < 0.05 ? ' *' : '') + '; ' + v.n; })));
+    }), 'Abundância de adultos padronizada por 24 h × variáveis do intervalo da coleta. Entraram ' + r.resumo.nSpearman + ' de ' + r.nColetas + ' coletas' + (r.resumo.foraDoSpearman ? ' (' + r.resumo.foraDoSpearman + ' de fora por ainda não estarem triadas)' : '') + '; o n de cada célula conta só as coletas com os dois valores preenchidos.' + (r.resumo.nSpearman < 10 ? ' Atenção: com menos de 10 coletas o valor de p é só uma aproximação grosseira.' : '') + ' * p &lt; 0,05. Valor de p pela aproximação t (a mesma do R quando há empates; sem empates e com poucas coletas, o p exato do R pode diferir um pouco). Confirme no R antes de publicar.' + (visao.carcaca === 'todas' && duas ? ' Com duas carcaças juntas, as coletas das duas entram na mesma correlação.' : ''));
+
+    h += NOTA_FORMICIDAE;
 
     /* Figuras */
     var porCarcaca = r.carcacas.length > 1 ? r.carcacas : [null];
@@ -164,19 +183,19 @@
     h += '<h2>Figura 4 – Composição por fase</h2><div class="figura" id="fig4"></div><p class="legenda-tab">Frequência relativa de cada grupo em cada fase (barras de 100%).</p>';
     h += '<h2>Figura 5 – Abundância e temperatura</h2>';
     porCarcaca.forEach(function (cc, i) { h += (cc ? '<p class="sub">Carcaça ' + esc(cc) + '</p>' : '') + '<div class="figura" id="fig5-' + i + '"></div>'; });
-    h += '<p class="legenda-tab">Adultos por 24 h (barras) e temperatura máxima e mínima (linhas), em dois painéis com o mesmo eixo de dias, porque as unidades são diferentes.</p>';
-    h += '<h2>Figura 6 – Curva do coletor</h2><div class="figura" id="fig6"></div><p class="legenda-tab">Riqueza acumulada ao longo das coletas. Se a curva estabiliza, o esforço de coleta foi suficiente.</p>';
+    h += '<p class="legenda-tab">Adultos por 24 h (barras) e temperatura máxima e mínima (linhas), em dois painéis com o mesmo eixo de dias, porque as unidades são diferentes. Coletas no gráfico: ' + r.coletas.filter(function (c) { return c.entra; }).length + ' de ' + r.coletas.length + '.</p>';
+    h += '<h2>Figura 6 – Curva do coletor</h2><div class="figura" id="fig6"></div><p class="legenda-tab">Riqueza acumulada ao longo das coletas. Se a curva estabiliza, o esforço de coleta foi suficiente. n = ' + r.curva.length + ' coletas, na ordem em que foram feitas.</p>';
     h += '<h2>Dispersão da correlação</h2><div class="filtros"><label>Grupo <select data-visao="spGrupo">' + opcoes(r.spearman.map(function (g) { return [g.campo, g.grupo]; }), visao.spGrupo) + '</select></label><label>Variável <select data-visao="spVar">' + opcoes(r.spearman[0].variaveis.map(function (v) { return [v.campo, v.nome]; }), visao.spVar) + '</select></label></div><div class="figura" id="figsp"></div><p class="legenda-tab" id="legsp"></p>';
 
     /* frases */
     h += '<h2>Frases com os seus números</h2><div class="cartao"><ul class="frases">' + frases(r).map(function (f) { return '<li>' + f + '</li>'; }).join('') + '</ul><p class="sub">Modelos do guia de resultados, preenchidos com os dados lançados. Revise antes de usar.</p></div>';
-    h += '<div class="linha-botoes"><button data-acao="exp-resultados">Exportar tabelas (CSV)</button><button data-acao="exp-xlsx">Exportar tudo (XLSX)</button></div>';
+    h += '<div class="linha-botoes"><button data-acao="exp-resultados">Exportar tabelas (CSV)</button><button data-acao="exp-xlsx">Exportar tudo (XLSX)</button><button data-acao="exp-formulas">Excel com fórmulas (XLSX)</button></div>';
     tela.innerHTML = h;
 
     porCarcaca.forEach(function (cc, i) {
       var cs = r.coletas.filter(function (c) { return !cc || c.carcaca === cc; });
       G.temperatura(document.getElementById('fig2-' + i), r, cs);
-      G.abundancia(document.getElementById('fig5-' + i), r, cs);
+      G.abundancia(document.getElementById('fig5-' + i), r, cs.filter(function (c) { return c.entra; }));
     });
     G.sucessao(document.getElementById('fig3'), r, r.carcacas.length === 1 ? r.coletas : null);
     G.composicao(document.getElementById('fig4'), r);
@@ -186,6 +205,7 @@
     var pares = [];
     r.coletas.forEach(function (c) {
       if (visao.ate15 && !(c.diaN !== null && c.diaN <= 15)) return;
+      if (!c.entra) return;
       var y = r.por24(c, grupo.campo), x = c[variavel.campo];
       if (y !== null && x !== null && c.chave) pares.push({ x: x, y: y, rotulo: 'Carcaça ' + c.carcaca + ' ' + c.dia });
     });
@@ -208,6 +228,7 @@
       f.push((r.carcacas.length > 1 ? 'Carcaça ' + cc + ': a' : 'A') + ' decomposição durou ' + tot + ' dias nas fases com datas lançadas. A fase mais curta foi ' + ord[0].fase.toLowerCase() + ' (' + ord[0].duracao + ' dias) e a mais longa, ' + ord[ord.length - 1].fase.toLowerCase() + ' (' + ord[ord.length - 1].duracao + ' dias) (Tabela 1).');
     });
     r.spearman.forEach(function (g) {
+      if (g.grupo === 'Formicidae' && !r.config.formicidaeTab5) return;
       g.variaveis.forEach(function (v) {
         if (v.rho !== null && v.p < 0.05) f.push('A abundância de ' + (g.grupo === 'Total' ? 'adultos (total)' : g.grupo) + ' apresentou correlação ' + (v.rho > 0 ? 'positiva' : 'negativa') + ' com ' + v.nome.replace(/ \(.*/, '').toLowerCase() + ' (ρ = ' + fmt(v.rho, 2) + '; p = ' + (v.p < 0.001 ? '< 0,001' : fmt(v.p, 3)) + ') (Tabela 5).');
       });
@@ -217,24 +238,36 @@
 
   /* ---------- Mais: fases, taxons, dados, instalacao ---------- */
   function telaMais() {
-    var h = '<h1>Mais</h1><h2>Fases de decomposição (Payne, 1965)</h2><p class="sub">Datas de início e término de cada fase, do Apêndice B. A duração é calculada.</p>';
+    var rf = C.calcular(estado), nome = NOMES[banco.ativo];
+    var h = '<h1>Mais – ' + nome + '</h1><h2>Fases de decomposição (Payne, 1965)</h2><p class="sub">Datas de início e término de cada fase, do Apêndice B. Regra da duração em vigor: <b>' + esc(rf.regraDuracao) + '</b>. Se você digitar a duração manual de uma fase, ela vale no lugar da regra.</p>';
     ['1', '2'].forEach(function (cc) {
-      h += '<details' + (cc === '1' ? ' open' : '') + '><summary>Carcaça ' + cc + '</summary><div class="fases-grade"><span class="cab">Fase</span><span class="cab">Início</span><span class="cab">Término</span>';
+      var temDados = estado.fases.some(function (x) { return String(x.carcaca) === cc && (x.inicio || x.termino || x.duracaoManual !== undefined && x.duracaoManual !== ''); });
+      h += '<details' + (cc === '1' || temDados ? ' open' : '') + '><summary>Carcaça ' + cc + '</summary>';
       C.FASES.forEach(function (f) {
         var reg = estado.fases.filter(function (x) { return String(x.carcaca) === cc && x.fase === f; })[0] || {};
-        h += '<span>' + esc(f) + '</span><input type="date" aria-label="Início ' + esc(f) + '" data-fase="' + esc(f) + '" data-carcaca="' + cc + '" data-campo="inicio" value="' + esc(reg.inicio || '') + '"><input type="date" aria-label="Término ' + esc(f) + '" data-fase="' + esc(f) + '" data-carcaca="' + cc + '" data-campo="termino" value="' + esc(reg.termino || '') + '">';
+        var calc = rf.fases.filter(function (x) { return x.carcaca === cc && x.fase === f; })[0];
+        var attr = ' data-fase="' + esc(f) + '" data-carcaca="' + cc + '"';
+        h += '<div class="fase-linha"><div class="fase-tit"><b>' + esc(f) + '</b><span class="sub">' + (calc && calc.duracao !== null ? 'duração: ' + fmt(calc.duracao, calc.duracao % 1 ? 1 : 0) + ' dia(s) · ' + esc(calc.duracaoOrigem === 'manual' ? 'manual' : rf.regraDuracao) : 'duração: –') + '</span></div>' +
+          '<div class="fase-campos"><label>Início<input type="date"' + attr + ' data-campo="inicio" value="' + esc(reg.inicio || '') + '"></label><label>Término<input type="date"' + attr + ' data-campo="termino" value="' + esc(reg.termino || '') + '"></label><label>Manual (dias)<input inputmode="decimal"' + attr + ' data-campo="duracaoManual" value="' + esc(reg.duracaoManual === undefined || reg.duracaoManual === null ? '' : reg.duracaoManual) + '"></label></div></div>';
       });
-      h += '</div></details>';
+      h += '</details>';
     });
+    h += '<h2>Opções de cálculo</h2><div class="cartao"><div class="campos">' +
+      '<label class="inteiro">Regra da duração da fase<select data-config="duracaoRegra">' + opcoes(Object.keys(C.REGRAS_DURACAO).map(function (k) { return [k, C.REGRAS_DURACAO[k] + (k === 'termino-inicio' ? ' (padrão, igual à planilha)' : '')]; }), rf.config.duracaoRegra) + '</select></label>' +
+      '<label class="inteiro">Coletas ainda sem triagem<select data-config="naoTriadas">' + opcoes([['zero', 'Contam como zero adultos (padrão, igual à planilha)'], ['fora', 'Ficam de fora do Spearman e da Figura 5 até serem triadas']], rf.config.naoTriadas) + '</select></label>' +
+      '<label class="inteiro"><input type="checkbox" data-config="formicidaeTab5"' + (rf.config.formicidaeTab5 ? ' checked' : '') + '> Incluir Formicidae na Tabela 5 (correlação)</label></div>' +
+      '<p class="sub">Coleta “sem triagem” = coleta sem nenhum lote lançado. Também dá para marcar uma coleta específica como “de fora” ao editá-la. Hoje: ' + rf.resumo.naoTriadas + ' sem triagem; ' + rf.resumo.nSpearman + ' de ' + rf.nColetas + ' entram no Spearman e na Figura 5. Frequências, constância e índices não mudam com esta opção.</p></div>';
+    h += '<h2>Piloto e Oficial</h2><div class="cartao"><p class="sub">São dois conjuntos de dados separados: cada um tem suas coletas, triagem, fases, táxons, opções, tabelas e figuras. Troque no seletor do topo. Você está no <b>' + nome + '</b>.</p>' +
+      '<div class="linha-botoes"><button data-acao="copiar-config">Copiar configuração do Piloto para o Oficial</button></div><p class="sub">Copia a lista de táxons e as opções de cálculo. Não copia coletas, triagem nem datas das fases. As carcaças (1 e 2) e as seis fases são as mesmas nos dois conjuntos.</p></div>';
     h += '<h2>Táxons</h2><details><summary>Lista de táxons (' + estado.taxons.length + ')</summary><p class="sub">Lista do Apêndice C. Acrescente os táxons novos; eles entram nas listas e nos cálculos.</p><div class="rolagem"><table><thead><tr><th class="esq">Táxon</th><th class="esq">Família</th><th class="esq">Ordem</th><th></th></tr></thead><tbody>' +
       estado.taxons.map(function (t, i) { return '<tr><td>' + itx(t.taxon) + '</td><td class="esq">' + esc(t.familia) + '</td><td class="esq">' + esc(t.ordem) + '</td><td><button class="mini" data-acao="editar-taxon" data-i="' + i + '">Editar</button></td></tr>'; }).join('') +
       '</tbody></table></div><div class="linha-botoes"><button data-acao="novo-taxon">+ Novo táxon</button></div></details>';
-    h += '<h2>Dados e backup</h2><div class="cartao"><p class="sub">Tudo fica gravado só neste aparelho, sem login e sem servidor. Exporte um backup depois de cada dia de lançamento e guarde no iCloud/Drive ou mande para você mesma.</p>' +
-      '<div class="linha-botoes"><button class="primario" data-acao="exp-json">Backup completo (JSON)</button><button data-acao="exp-xlsx">Planilha (XLSX)</button><button data-acao="exp-coletas">Coletas (CSV)</button><button data-acao="exp-triagem">Triagem (CSV)</button><button data-acao="exp-resultados">Tabelas (CSV)</button></div>' +
+    h += '<h2>Dados e backup – ' + nome + '</h2><div class="cartao"><p class="sub">Exportar e importar valem para o conjunto aberto (' + nome + '). Tudo fica gravado só neste aparelho, sem login e sem servidor. Exporte um backup depois de cada dia de lançamento e guarde no iCloud/Drive ou mande para você mesma.</p>' +
+      '<div class="linha-botoes"><button class="primario" data-acao="exp-json">Backup do ' + nome + ' (JSON)</button><button data-acao="exp-xlsx">Planilha de valores (XLSX)</button><button data-acao="exp-formulas">Excel com fórmulas (XLSX)</button><button data-acao="exp-coletas">Coletas (CSV)</button><button data-acao="exp-triagem">Triagem (CSV)</button><button data-acao="exp-resultados">Tabelas (CSV)</button></div>' +
       '<div class="linha-botoes"><button data-acao="importar">Importar arquivo (JSON, CSV ou XLSX)</button></div><p class="sub">Importar aceita o backup do app, os CSV exportados aqui e a planilha de tabulação em Excel (abas Coletas, Triagem, Táxons e Fases). O CSV das coletas abre direto no R com read.csv2.</p>' +
       '<div class="linha-botoes"><button data-acao="exemplo">Carregar dados de exemplo</button><button class="perigo" data-acao="apagar">Apagar tudo e começar</button></div></div>';
     h += '<h2>Instalar no iPhone</h2><div class="cartao"><ol><li>Abra este endereço no <b>Safari</b>.</li><li>Toque em <b>Compartilhar</b> (quadrado com seta).</li><li>Escolha <b>Adicionar à Tela de Início</b> e confirme.</li><li>Abra o Atena pelo ícone: ele funciona sem internet depois da primeira abertura.</li></ol><p class="sub">Os dados do ícone da Tela de Início são separados dos do Safari. Lance sempre pelo ícone.</p></div>';
-    h += '<h2>Como o app calcula</h2><details><summary>Fórmulas</summary><ul><li>Temperatura média = (máx. + mín.) ÷ 2. Total por 24 h = total ÷ (intervalo ÷ 24).</li><li>FA = indivíduos do táxon na fase. FR (%) = FA ÷ total da fase × 100.</li><li>Constância (%) = coletas com o táxon ÷ total de coletas × 100. Constante &gt; 50%; acessória 25–50%; acidental &lt; 25%.</li><li>Dominância (%) = indivíduos do táxon ÷ total × 100. Eudominante ≥ 32; dominante ≥ 10; subdominante ≥ 3,2; recedente ≥ 1; subrecedente ≥ 0,32; esporádica abaixo disso.</li><li>H′ = −Σ p·ln(p). Simpson = 1 − Σ p². J′ = H′ ÷ ln(S). Jaccard = comuns ÷ (S₁ + S₂ − comuns).</li><li>Spearman: correlação dos postos (empates com posto médio), p bilateral pela distribuição t com n − 2 graus de liberdade.</li></ul><p class="sub">São as mesmas fórmulas da planilha de tabulação; a correlação, que na planilha era feita no R, aqui já sai calculada.</p></details>';
+    h += '<h2>Como o app calcula</h2><details><summary>Fórmulas</summary><ul><li>Temperatura média = (máx. + mín.) ÷ 2. Total por 24 h = total ÷ (intervalo ÷ 24).</li><li>FA = indivíduos do táxon na fase. FR (%) = FA ÷ total da fase × 100.</li><li>Constância (%) = coletas com o táxon ÷ total de coletas × 100. Constante &gt; 50%; acessória 25–50%; acidental &lt; 25%.</li><li>Dominância (%) = indivíduos do táxon ÷ total × 100. Eudominante ≥ 32; dominante ≥ 10; subdominante ≥ 3,2; recedente ≥ 1; subrecedente ≥ 0,32; esporádica abaixo disso.</li><li>H′ = −Σ p·ln(p), com logaritmo natural. Simpson = 1 − Σ p² (forma 1 − D). J′ = H′ ÷ ln(S). Jaccard = comuns ÷ (S₁ + S₂ − comuns).</li><li>Spearman: correlação dos postos (empates com posto médio), p bilateral pela distribuição t com n − 2 graus de liberdade.</li></ul><p class="sub">São as mesmas fórmulas da planilha de tabulação; a correlação, que na planilha era feita no R, aqui já sai calculada.</p></details>';
     tela.innerHTML = h;
   }
 
@@ -270,6 +303,7 @@
       '<label>Chuva INMET (mm)<input name="chuva" inputmode="decimal" value="' + esc(c.chuva == null ? '' : String(c.chuva).replace('.', ',')) + '"></label>' +
       '<label>Massa larval presente?<select name="massa">' + opcoes(['Não', 'Sim'], c.massa || 'Não') + '</select></label>' +
       '<label>Observação<input name="obs" value="' + esc(c.obs || '') + '"></label>' +
+      '<label class="inteiro">Coleta ainda não triada?<select name="fora">' + opcoes([['', 'Seguir a regra geral (Mais → Opções de cálculo)'], ['1', 'Deixar esta coleta de fora do Spearman e da Figura 5']], c.fora ? '1' : '') + '</select></label>' +
       '<div class="calculado" id="previa"></div></div>' +
       '<div class="acoes">' + (id ? '<button type="button" class="perigo" data-acao="excluir-coleta" data-id="' + esc(id) + '">Excluir</button>' : '') + '<button type="button" data-acao="fechar">Cancelar</button><button type="button" class="primario" data-acao="salvar-coleta" data-id="' + esc(id || '') + '">Salvar</button></div>');
     previaColeta();
@@ -289,7 +323,7 @@
     if (a !== null && b !== null && b > a) return avisar('A mínima está maior que a máxima. Confira os valores.');
     var c = estado.coletas.filter(function (x) { return x.id === id; })[0], antes = c ? { carcaca: c.carcaca, data: c.data } : null;
     if (!c) { c = { id: novoId() }; estado.coletas.push(c); }
-    c.carcaca = v.carcaca; c.data = v.data; c.dia = v.dia.toUpperCase(); c.hora = v.hora; c.fase = v.fase; c.massa = v.massa; c.obs = v.obs;
+    c.carcaca = v.carcaca; c.data = v.data; c.dia = v.dia.toUpperCase(); c.hora = v.hora; c.fase = v.fase; c.massa = v.massa; c.obs = v.obs; c.fora = v.fora === '1';
     ['tmax', 'tmin', 't16', 'ur', 'chuva', 'intervalo'].forEach(function (k) { c[k] = numOuVazio(v[k]); });
     if (antes && (antes.carcaca !== c.carcaca || antes.data !== c.data)) {
       var n = 0;
@@ -354,10 +388,10 @@
   }
 
   /* ---------- exportar ---------- */
-  var CAB_COLETAS = ['Carcaça', 'Data', 'Dia de exposição', 'Hora real', 'Fase (Payne)', 'Tmáx ar do intervalo (°C)', 'Tmín ar do intervalo (°C)', 'Temp. média ar (°C)', 'T ar 16h (°C)', 'UR média INMET desde a coleta anterior (%)', 'Chuva INMET desde a coleta anterior (mm)', 'Massa larval presente? (Sim/Não)', 'Intervalo desde a coleta anterior (h)', 'Dia nº', 'Calliphoridae (adultos)', 'Sarcophagidae (adultos)', 'Muscidae (adultos)', 'Coleoptera (adultos)', 'Formicidae (adultos)', 'Total de adultos coletados', 'Total por 24 h', 'Observação'];
+  var CAB_COLETAS = ['Carcaça', 'Data', 'Dia de exposição', 'Hora real', 'Fase (Payne)', 'Tmáx ar do intervalo (°C)', 'Tmín ar do intervalo (°C)', 'Temp. média ar (°C)', 'T ar 16h (°C)', 'UR média INMET desde a coleta anterior (%)', 'Chuva INMET desde a coleta anterior (mm)', 'Massa larval presente? (Sim/Não)', 'Intervalo desde a coleta anterior (h)', 'Dia nº', 'Calliphoridae (adultos)', 'Sarcophagidae (adultos)', 'Muscidae (adultos)', 'Coleoptera (adultos)', 'Formicidae (adultos)', 'Total de adultos coletados', 'Total por 24 h', 'Observação', 'Fora do Spearman e da Figura 5 (Sim/Não)'];
   var CAB_TRIAGEM = ['Nº do lote', 'Carcaça', 'Data da coleta', 'Origem', 'Tipo', 'Táxon', 'Nº de indivíduos', 'Observação', 'Fase (da aba Coletas)', 'Família', 'Ordem', 'Dia nº'];
   function linhasColetas(r) {
-    return r.coletas.map(function (c) { return [c.carcaca, { data: c.data }, c.dia, c.hora, c.fase, c.tmax, c.tmin, c.tmed, c.t16, c.ur, c.chuva, c.massa, c.intervalo, c.diaN, c.calliphoridae, c.sarcophagidae, c.muscidae, c.coleoptera, c.formicidae, c.total, c.por24, c.obs]; });
+    return r.coletas.map(function (c) { return [c.carcaca, { data: c.data }, c.dia, c.hora, c.fase, c.tmax, c.tmin, c.tmed, c.t16, c.ur, c.chuva, c.massa, c.intervalo, c.diaN, c.calliphoridae, c.sarcophagidae, c.muscidae, c.coleoptera, c.formicidae, c.total, c.por24, c.obs, c.fora ? 'Sim' : 'Não']; });
   }
   function linhasTriagem(r) {
     return r.triagem.map(function (t) { return [t.lote, t.carcaca, { data: t.data }, t.origem, t.tipo, t.taxon, t.n, t.obs, t.fase, t.familia, t.ordem, t.diaN]; });
@@ -396,14 +430,14 @@
   }
   function carimbo() { return hojeISO(); }
   function exportarJSON() {
-    var copia = JSON.parse(JSON.stringify(estado)); copia.exportadoEm = new Date().toISOString();
-    baixar('atena-backup-' + carimbo() + '.json', JSON.stringify(copia, null, 1), 'application/json');
+    var copia = JSON.parse(JSON.stringify(estado)); copia.exportadoEm = new Date().toISOString(); copia.conjunto = banco.ativo;
+    baixar('atena-' + banco.ativo + '-backup-' + carimbo() + '.json', JSON.stringify(copia, null, 1), 'application/json');
     meta.ultimoBackup = hojeISO(); salvarMeta();
   }
   function exportarResultadosCSV() {
     var t = tabelasResultado(calc()), linhas = [];
     Object.keys(t).forEach(function (nome) { linhas.push([nome]); t[nome].forEach(function (l) { linhas.push(l); }); linhas.push([]); });
-    baixar('atena-tabelas-' + carimbo() + '.csv', paraCSV(linhas), 'text/csv');
+    baixar('atena-' + banco.ativo + '-tabelas-' + carimbo() + '.csv', paraCSV(linhas), 'text/csv');
   }
   function carregarXLSX() {
     return new Promise(function (ok, erro) {
@@ -412,6 +446,26 @@
       s.onload = function () { ok(window.XLSX); }; s.onerror = function () { erro(new Error('sem rede')); };
       document.head.appendChild(s);
     });
+  }
+  /* Excel com as formulas vivas de todas as tabelas (para o orientador conferir) */
+  function exportarFormulas() {
+    carregarXLSX().then(function (X) {
+      var wb = X.utils.book_new();
+      window.AtenaPlanilha.montar(estado).forEach(function (f) {
+        var ws = {}, maxL = 0, maxC = 0;
+        Object.keys(f.cel).forEach(function (ref) {
+          var c = f.cel[ref], d = X.utils.decode_cell(ref), o = typeof c.v === 'number' ? { t: 'n', v: c.v } : { t: 's', v: String(c.v) };
+          if (c.f) o.f = c.f;
+          if (c.z) o.z = c.z;
+          ws[ref] = o; maxL = Math.max(maxL, d.r); maxC = Math.max(maxC, d.c);
+        });
+        ws['!ref'] = X.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: maxL, c: maxC } });
+        ws['!cols'] = f.larguras.map(function (w) { return { wch: w }; });
+        X.utils.book_append_sheet(wb, ws, f.nome);
+      });
+      var dados = X.write(wb, { bookType: 'xlsx', type: 'array' }), tipo = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      baixar('atena-' + banco.ativo + '-formulas-' + carimbo() + '.xlsx', new Blob([dados], { type: tipo }), tipo);
+    }).catch(function () { avisar('Para gerar o XLSX é preciso internet na primeira vez.'); });
   }
   function serial(iso) { return Math.round((Date.parse(iso + 'T00:00:00Z') - Date.UTC(1899, 11, 30)) / 86400000); }
   function exportarXLSX() {
@@ -432,7 +486,7 @@
       folha('Táxons', [['Ordem', 'Família', 'Táxon']].concat(estado.taxons.map(function (t) { return [t.ordem, t.familia, t.taxon]; })));
       var t = tabelasResultado(r); Object.keys(t).forEach(function (n) { folha(n, t[n]); });
       var dados = X.write(wb, { bookType: 'xlsx', type: 'array' });
-      baixar('atena-' + carimbo() + '.xlsx', new Blob([dados], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      baixar('atena-' + banco.ativo + '-' + carimbo() + '.xlsx', new Blob([dados], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     }).catch(function () { avisar('Para gerar o XLSX é preciso internet na primeira vez. Use o CSV ou o JSON.'); });
   }
 
@@ -470,10 +524,10 @@
   /* converte uma matriz (cabecalho + linhas) em registros do app */
   function col(cab, prefixo) { for (var i = 0; i < cab.length; i++) if (semAcento(cab[i]).indexOf(prefixo) === 0) return i; return -1; }
   function matrizColetas(m) {
-    var cab = m[0], ix = { carcaca: col(cab, 'carcaca'), data: col(cab, 'data'), dia: col(cab, 'dia de exp'), hora: col(cab, 'hora'), fase: col(cab, 'fase'), tmax: col(cab, 'tmax'), tmin: col(cab, 'tmin'), t16: col(cab, 't ar 16'), ur: col(cab, 'ur media'), chuva: col(cab, 'chuva'), massa: col(cab, 'massa'), intervalo: col(cab, 'intervalo'), obs: col(cab, 'observacao') };
+    var cab = m[0], ix = { carcaca: col(cab, 'carcaca'), data: col(cab, 'data'), dia: col(cab, 'dia de exp'), hora: col(cab, 'hora'), fase: col(cab, 'fase'), tmax: col(cab, 'tmax'), tmin: col(cab, 'tmin'), t16: col(cab, 't ar 16'), ur: col(cab, 'ur media'), chuva: col(cab, 'chuva'), massa: col(cab, 'massa'), intervalo: col(cab, 'intervalo'), obs: col(cab, 'observacao'), fora: col(cab, 'fora do spearman') };
     return m.slice(1).map(function (l) {
       var g = function (k) { return ix[k] < 0 ? '' : l[ix[k]]; };
-      return { id: novoId(), carcaca: String(g('carcaca') == null ? '' : g('carcaca')).trim(), data: paraISO(g('data')), dia: String(g('dia') || '').trim().toUpperCase(), hora: paraHora(g('hora')), fase: String(g('fase') || '').trim(), tmax: numOuVazio(g('tmax')), tmin: numOuVazio(g('tmin')), t16: numOuVazio(g('t16')), ur: numOuVazio(g('ur')), chuva: numOuVazio(g('chuva')), massa: String(g('massa') || '').trim(), intervalo: numOuVazio(g('intervalo')), obs: String(g('obs') || '').trim() };
+      return { id: novoId(), carcaca: String(g('carcaca') == null ? '' : g('carcaca')).trim(), data: paraISO(g('data')), dia: String(g('dia') || '').trim().toUpperCase(), hora: paraHora(g('hora')), fase: String(g('fase') || '').trim(), tmax: numOuVazio(g('tmax')), tmin: numOuVazio(g('tmin')), t16: numOuVazio(g('t16')), ur: numOuVazio(g('ur')), chuva: numOuVazio(g('chuva')), massa: String(g('massa') || '').trim(), intervalo: numOuVazio(g('intervalo')), obs: String(g('obs') || '').trim(), fora: semAcento(g('fora')) === 'sim' };
     }).filter(function (c) { return c.carcaca !== '' && c.data; });
   }
   function matrizTriagem(m) {
@@ -492,8 +546,8 @@
     if (novo.taxons) partes.push(novo.taxons.length + ' táxons');
     if (novo.fases) partes.push(novo.fases.length + ' fases');
     if (!partes.length) return avisar('Não encontrei coletas nem triagem neste arquivo.');
-    if (!confirm('Importar de ' + origem + ': ' + partes.join(', ') + '.\n\nIsto SUBSTITUI o que está lançado nessas partes do app. Continuar?')) return;
-    ['coletas', 'triagem', 'taxons', 'fases'].forEach(function (k) { if (novo[k]) estado[k] = novo[k]; });
+    if (!confirm('Importar de ' + origem + ' para o conjunto ' + NOMES[banco.ativo].toUpperCase() + ': ' + partes.join(', ') + '.' + (novo.conjunto && NOMES[novo.conjunto] && novo.conjunto !== banco.ativo ? '\n\nAtenção: este arquivo foi exportado do conjunto ' + NOMES[novo.conjunto] + '.' : '') + '\n\nIsto SUBSTITUI o que está lançado nessas partes do ' + NOMES[banco.ativo] + '. Continuar?')) return;
+    ['coletas', 'triagem', 'taxons', 'fases', 'config'].forEach(function (k) { if (novo[k]) estado[k] = novo[k]; });
     estado.exemplo = !!novo.exemplo;
     /* taxons da triagem que nao estao na lista entram como "a classificar" */
     estado.triagem.forEach(function (t) { if (t.taxon && !estado.taxons.some(function (x) { return x.taxon === t.taxon; })) estado.taxons.push({ ordem: 'A classificar', familia: 'A classificar', taxon: t.taxon }); });
@@ -521,7 +575,7 @@
       if (/\.json$/.test(nome) || /^\s*\{/.test(texto)) {
         var o = JSON.parse(texto);
         if (!o || !Array.isArray(o.coletas) || !Array.isArray(o.triagem)) return avisar('Este JSON não é um backup do Atena.');
-        return aplicarImportacao({ coletas: o.coletas, triagem: o.triagem, taxons: o.taxons, fases: o.fases || [], exemplo: o.exemplo }, 'backup JSON');
+        return aplicarImportacao({ coletas: o.coletas, triagem: o.triagem, taxons: o.taxons, fases: o.fases || [], config: o.config, conjunto: o.conjunto, exemplo: o.exemplo }, 'backup JSON');
       }
       var m = lerCSV(texto);
       if (!m.length) return avisar('Arquivo vazio.');
@@ -555,8 +609,17 @@
     'fechar': fechar,
     'exp-json': exportarJSON,
     'exp-xlsx': exportarXLSX,
-    'exp-coletas': function () { baixar('atena-coletas-' + carimbo() + '.csv', paraCSV([CAB_COLETAS].concat(linhasColetas(C.calcular(estado)))), 'text/csv'); },
-    'exp-triagem': function () { baixar('atena-triagem-' + carimbo() + '.csv', paraCSV([CAB_TRIAGEM].concat(linhasTriagem(C.calcular(estado)))), 'text/csv'); },
+    'exp-formulas': exportarFormulas,
+    'copiar-config': function () {
+      var de = banco.conjuntos.piloto, para = banco.conjuntos.oficial;
+      if (!confirm('Copiar do Piloto para o Oficial a lista de táxons (' + de.taxons.length + ') e as opções de cálculo?\n\nNão copia coletas, triagem nem datas das fases. A lista de táxons do Oficial será substituída' + (para.triagem.length ? '; táxons já usados na triagem do Oficial são mantidos.' : '.'))) return;
+      var novos = JSON.parse(JSON.stringify(de.taxons));
+      para.triagem.forEach(function (t) { if (t.taxon && !novos.some(function (x) { return x.taxon === t.taxon; })) { var antigo = para.taxons.filter(function (x) { return x.taxon === t.taxon; })[0]; novos.push(antigo || { ordem: 'A classificar', familia: 'A classificar', taxon: t.taxon }); } });
+      para.taxons = novos; para.config = JSON.parse(JSON.stringify(C.lerConfig(de)));
+      estado = banco.conjuntos[banco.ativo]; salvar(); avisar('Configuração do Piloto copiada para o Oficial.');
+    },
+    'exp-coletas': function () { baixar('atena-' + banco.ativo + '-coletas-' + carimbo() + '.csv', paraCSV([CAB_COLETAS].concat(linhasColetas(C.calcular(estado)))), 'text/csv'); },
+    'exp-triagem': function () { baixar('atena-' + banco.ativo + '-triagem-' + carimbo() + '.csv', paraCSV([CAB_TRIAGEM].concat(linhasTriagem(C.calcular(estado)))), 'text/csv'); },
     'exp-resultados': exportarResultadosCSV,
     'importar': function () { var i = document.getElementById('arquivo'); i.value = ''; i.click(); },
     'exemplo': function () {
@@ -570,6 +633,14 @@
     }
   };
   document.addEventListener('click', function (e) {
+    var cj = e.target.closest('[data-conjunto]');
+    if (cj) {
+      if (cj.dataset.conjunto !== banco.ativo) {
+        banco.conjuntos[banco.ativo] = estado; banco.ativo = cj.dataset.conjunto; estado = banco.conjuntos[banco.ativo];
+        visao.filtroTriagem = ''; visao.carcaca = 'todas'; ultimoLote = null; salvar(); avisar('Conjunto aberto: ' + NOMES[banco.ativo] + '.');
+      }
+      return;
+    }
     var b = e.target.closest('[data-aba]');
     if (b) { aba = b.dataset.aba; desenhar(); window.scrollTo(0, 0); return; }
     b = e.target.closest('[data-acao]');
@@ -578,13 +649,16 @@
   document.addEventListener('change', function (e) {
     var el = e.target;
     if (el.id === 'arquivo') { if (el.files[0]) importarArquivo(el.files[0]); return; }
+    if (el.dataset.config) {
+      estado.config = C.lerConfig(estado); estado.config[el.dataset.config] = el.type === 'checkbox' ? el.checked : el.value; salvar(); return;
+    }
     if (el.dataset.visao) { visao[el.dataset.visao] = el.type === 'checkbox' ? el.checked : el.value; desenhar(); return; }
     if (el.dataset.fase) {
       var reg = estado.fases.filter(function (x) { return String(x.carcaca) === el.dataset.carcaca && x.fase === el.dataset.fase; })[0];
       if (!reg) { reg = { carcaca: el.dataset.carcaca, fase: el.dataset.fase, inicio: '', termino: '' }; estado.fases.push(reg); }
-      reg[el.dataset.campo] = el.value;
+      reg[el.dataset.campo] = el.dataset.campo === 'duracaoManual' ? numOuVazio(el.value) : el.value;
       if (reg.inicio && reg.termino && reg.termino < reg.inicio) avisar('O término está antes do início. Confira as datas.');
-      salvar(true);
+      salvar();
     }
   });
   formulario.addEventListener('input', previaColeta);
@@ -593,7 +667,9 @@
 
   G.ligarDicas();
   desenhar();
+  salvar(true);
+  if (banco.migradoDaV1 && !meta.avisouMigracao) { meta.avisouMigracao = true; salvarMeta(); avisar('Atualização: seus dados anteriores agora estão no conjunto Piloto.'); }
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () { /* ignora */ });
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(function () { /* sem offline */ });
-  window.AtenaApp = { estado: function () { return estado; }, importarArquivo: importarArquivo };
+  window.AtenaApp = { estado: function () { return estado; }, banco: function () { return banco; }, importarArquivo: importarArquivo };
 })();

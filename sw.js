@@ -1,7 +1,7 @@
 /* Atena - service worker simples: guarda o app para funcionar sem internet. */
-var VERSAO = 'atena-v1';
-var ARQUIVOS = ['./', 'index.html', 'style.css', 'calc.js', 'charts.js', 'exemplo.js', 'app.js', 'manifest.webmanifest',
-  'icones/icone-180.png', 'icones/icone-192.png', 'icones/icone-512.png'];
+var VERSAO = 'atena-v2';
+var ARQUIVOS = ['./', 'index.html', 'style.css', 'calc.js', 'planilha.js', 'charts.js', 'exemplo.js', 'app.js', 'manifest.webmanifest',
+  'icones/icone.svg', 'icones/icone-180.png', 'icones/icone-192.png', 'icones/icone-512.png'];
 var XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
 
 self.addEventListener('install', function (e) {

@@ -54,8 +54,21 @@
     if (isNaN(a) || isNaN(b)) return null;
     return Math.round((b - a) / 86400000);
   }
+  var REGRAS_DURACAO = {
+    'termino-inicio': 'término − início',
+    'inclusivo': 'término − início + 1 (conta o dia inicial e o final)',
+    'proxima': 'início da fase seguinte − início'
+  };
+  function configPadrao() { return { duracaoRegra: 'termino-inicio', naoTriadas: 'zero', formicidaeTab5: false }; }
+  function lerConfig(estado) {
+    var c = configPadrao(), e = (estado && estado.config) || {};
+    if (REGRAS_DURACAO[e.duracaoRegra]) c.duracaoRegra = e.duracaoRegra;
+    if (e.naoTriadas === 'fora') c.naoTriadas = 'fora';
+    c.formicidaeTab5 = !!e.formicidaeTab5;
+    return c;
+  }
   function estadoVazio() {
-    return { app: 'atena', versao: 1, taxons: JSON.parse(JSON.stringify(TAXONS_PADRAO)), coletas: [], triagem: [], fases: [] };
+    return { app: 'atena', versao: 2, config: configPadrao(), taxons: JSON.parse(JSON.stringify(TAXONS_PADRAO)), coletas: [], triagem: [], fases: [] };
   }
   function classeConstancia(pct) { return pct > 50 ? 'Constante' : (pct >= 25 ? 'Acessória' : 'Acidental'); }
   function classeDominancia(pct) {
@@ -126,9 +139,26 @@
     return { n: n, rho: rho, p: p };
   }
 
+  /* duracao da fase: manual (digitada) ou pela regra escolhida */
+  function duracaoFase(estado, cfg, carcaca, indiceFase, reg) {
+    var manual = num(reg.duracaoManual);
+    if (manual !== null) return { valor: manual, origem: 'manual' };
+    if (cfg.duracaoRegra === 'proxima') {
+      for (var k = indiceFase + 1; k < FASES.length; k++) {
+        var prox = (estado.fases || []).filter(function (x) { return String(x.carcaca) === carcaca && x.fase === FASES[k] && x.inicio; })[0];
+        if (prox) return { valor: diasEntre(reg.inicio, prox.inicio), origem: 'próxima fase', proxima: prox.inicio, proximaIndice: k };
+      }
+      return { valor: diasEntre(reg.inicio, reg.termino), origem: 'calculada' };
+    }
+    var d = diasEntre(reg.inicio, reg.termino);
+    if (cfg.duracaoRegra === 'inclusivo') return { valor: d === null ? null : d + 1, origem: 'calculada' };
+    return { valor: d, origem: 'calculada' };
+  }
+
   /* ---------- calculo principal ---------- */
   function calcular(estado, opcoes) {
     opcoes = opcoes || {};
+    var cfg = lerConfig(estado);
     var filtro = opcoes.carcaca && opcoes.carcaca !== 'todas' ? String(opcoes.carcaca) : null;
     var taxons = (estado.taxons || []).filter(function (t) { return t && t.taxon; });
     var infoTaxon = {};
@@ -143,7 +173,7 @@
       return {
         id: c.id, ordem: i, carcaca: String(c.carcaca == null ? '' : c.carcaca), data: c.data || '', dia: c.dia || '', hora: c.hora || '',
         fase: c.fase || '', tmax: tmax, tmin: tmin, t16: num(c.t16), ur: num(c.ur), chuva: num(c.chuva),
-        massa: c.massa || '', intervalo: intervalo, obs: c.obs || '',
+        massa: c.massa || '', intervalo: intervalo, obs: c.obs || '', fora: !!c.fora, nLotes: 0,
         tmed: (tmax === null || tmin === null) ? null : (tmax + tmin) / 2,
         chave: chave(c.carcaca, c.data), diaN: diaNumero(c.dia),
         calliphoridae: 0, sarcophagidae: 0, muscidae: 0, coleoptera: 0, formicidae: 0, total: 0, presentes: {}
@@ -176,6 +206,7 @@
     coletas.forEach(function (c) {
       if (!c.chave) return;
       triagem.forEach(function (r) {
+        if (r.chave === c.chave) c.nLotes++;
         if (r.tipo !== ADULTO || r.chave !== c.chave) return;
         c.total += r.n;
         if (r.familia === 'Calliphoridae') c.calliphoridae += r.n;
@@ -187,6 +218,8 @@
       taxons.forEach(function (t) { c.presentes[t.taxon] = (somaPorChaveTaxon[c.chave + '||' + t.taxon] || 0) > 0 ? 1 : 0; });
       c.por24 = (c.intervalo === null || c.intervalo === 0) ? null : c.total / (c.intervalo / 24);
     });
+    /* coleta ainda nao triada: por padrao conta como zero; pode ficar de fora do Spearman e da Figura 5 */
+    coletas.forEach(function (c) { c.totalSemFormicidae = c.total - c.formicidae; c.triada = c.nLotes > 0; c.entra = !(c.fora || (cfg.naoTriadas === 'fora' && !c.triada)); });
     function por24(c, campo) { return (c.intervalo === null || c.intervalo === 0 || !c.chave) ? null : c[campo] / (c.intervalo / 24); }
 
     /* FA e FR por fase (aba FA_FR) */
@@ -225,14 +258,14 @@
 
     /* indices de diversidade por fase e Jaccard */
     var indices = FASES.map(function (f, i) {
-      var N = totalFase[i], S = 0, h = 0, d = 0;
+      var N = totalFase[i], S = 0, h = 0, d = 0, nn = 0;
       faFr.forEach(function (l) {
         var v = l.fa[i];
         if (v > 0) S++;
-        if (N > 0 && v > 0) { var p = v / N; h += p * Math.log(p); d += p * p; }
+        if (N > 0 && v > 0) { var p = v / N; h += p * Math.log(p); d += p * p; nn += v * (v - 1); }
       });
       var H = N === 0 ? null : -h;
-      return { fase: f, sigla: SIGLAS[i], S: S, N: N, shannon: H, simpson: N === 0 ? null : 1 - d, pielou: (S < 2 || H === null) ? null : H / Math.log(S) };
+      return { fase: f, sigla: SIGLAS[i], S: S, N: N, shannon: H, simpson: N === 0 ? null : 1 - d, simpsonSemVies: N < 2 ? null : 1 - nn / (N * (N - 1)), pielou: (S < 2 || H === null) ? null : H / Math.log(S) };
     });
     var jaccard = FASES.map(function (a, i) {
       return FASES.map(function (b, j) {
@@ -292,9 +325,10 @@
         var tm = cs.filter(function (c) { return c.tmed !== null; }), ur = cs.filter(function (c) { return c.ur !== null; });
         var adultos = 0;
         triagem.forEach(function (r) { if (r.fase === f && r.carcaca === cc && r.tipo === ADULTO) adultos += r.n; });
+        var dur = duracaoFase(estado, cfg, cc, i, reg);
         fases.push({
           carcaca: cc, fase: f, sigla: SIGLAS[i], inicio: reg.inicio || '', termino: reg.termino || '',
-          duracao: diasEntre(reg.inicio, reg.termino), nColetas: cs.length,
+          duracao: dur.valor, duracaoOrigem: dur.origem, duracaoManual: num(reg.duracaoManual), proximaInicio: dur.proxima || '', nColetas: cs.length,
           tmed: tm.length ? tm.reduce(function (a, c) { return a + c.tmed; }, 0) / tm.length : null,
           ur: ur.length ? ur.reduce(function (a, c) { return a + c.ur; }, 0) / ur.length : null,
           chuva: cs.length === 0 ? null : cs.reduce(function (a, c) { return a + (c.chuva || 0); }, 0),
@@ -304,8 +338,8 @@
     });
 
     /* Spearman (Tabela 5): abundancia por 24 h x temperatura media, UR e chuva */
-    var base = coletasLancadas.filter(function (c) { return !opcoes.ate15 || (c.diaN !== null && c.diaN <= 15); });
-    var gruposSp = [['Calliphoridae', 'calliphoridae'], ['Sarcophagidae', 'sarcophagidae'], ['Muscidae', 'muscidae'], ['Coleoptera', 'coleoptera'], ['Formicidae', 'formicidae'], ['Total', 'total']];
+    var base = coletasLancadas.filter(function (c) { return c.entra && (!opcoes.ate15 || (c.diaN !== null && c.diaN <= 15)); });
+    var gruposSp = [['Calliphoridae', 'calliphoridae'], ['Sarcophagidae', 'sarcophagidae'], ['Muscidae', 'muscidae'], ['Coleoptera', 'coleoptera'], ['Formicidae', 'formicidae'], ['Total', 'total'], ['Total sem Formicidae', 'totalSemFormicidae']];
     var variaveis = [['Temperatura média (°C)', 'tmed'], ['Umidade relativa (%)', 'ur'], ['Precipitação (mm)', 'chuva']];
     var spearmanTab = gruposSp.map(function (g) {
       var y = base.map(function (c) { return por24(c, g[1]); });
@@ -324,19 +358,23 @@
       nColetas: nColetas, nLotes: triagem.length, individuos: totalGeral, taxons: comRegistro.length,
       familias: Object.keys(comRegistro.reduce(function (a, l) { a[l.familia] = 1; return a; }, {})).length,
       ordens: Object.keys(comRegistro.reduce(function (a, l) { a[l.ordem] = 1; return a; }, {})).length,
-      pendentes: triagem.filter(function (r) { return r.fase === 'coleta não lançada'; }).length
+      pendentes: triagem.filter(function (r) { return r.fase === 'coleta não lançada'; }).length,
+      naoTriadas: coletasLancadas.filter(function (c) { return !c.triada; }).length,
+      foraDoSpearman: coletasLancadas.filter(function (c) { return !c.entra; }).length, nSpearman: base.length
     };
 
     return {
       FASES: FASES, SIGLAS: SIGLAS, GRUPOS: GRUPOS, carcacas: carcacas, coletas: coletas, triagem: triagem, fases: fases,
       faFr: faFr, totalFase: totalFase, totalGeral: totalGeral, constDom: constDom, nColetas: nColetas, indices: indices,
-      jaccard: jaccard, grupos: grupos, sucessao: sucessao, curva: curva, spearman: spearmanTab, resumo: resumo, por24: por24
+      jaccard: jaccard, grupos: grupos, sucessao: sucessao, curva: curva, spearman: spearmanTab, resumo: resumo, por24: por24,
+      config: cfg, regraDuracao: REGRAS_DURACAO[cfg.duracaoRegra]
     };
   }
 
   return {
     FASES: FASES, SIGLAS: SIGLAS, TIPOS: TIPOS, ORIGENS: ORIGENS, GRUPOS: GRUPOS, TAXONS_PADRAO: TAXONS_PADRAO,
     calcular: calcular, spearman: spearman, postos: postos, diaNumero: diaNumero, diasEntre: diasEntre,
-    classeConstancia: classeConstancia, classeDominancia: classeDominancia, estadoVazio: estadoVazio, num: num, chave: chave
+    classeConstancia: classeConstancia, classeDominancia: classeDominancia, estadoVazio: estadoVazio, num: num, chave: chave,
+    configPadrao: configPadrao, lerConfig: lerConfig, REGRAS_DURACAO: REGRAS_DURACAO
   };
 });

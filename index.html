@@ -5,13 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Atena</title>
 <meta name="description" content="Tabulação e análise de fauna entomonecrófaga: coletas, triagem, índices e gráficos calculados no próprio aparelho.">
-<meta name="theme-color" content="#14324a">
+<meta name="theme-color" content="#ffffff">
+<meta name="color-scheme" content="light only">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Atena">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icones/icone-180.png">
+<link rel="icon" type="image/svg+xml" href="icones/icone.svg">
 <link rel="icon" type="image/png" sizes="192x192" href="icones/icone-192.png">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -20,6 +22,11 @@
   <div class="marca"><img src="icones/icone-192.png" alt="" width="28" height="28"><div><strong>Atena</strong><span id="subtitulo">Fauna entomonecrófaga</span></div></div>
   <span id="selo-exemplo" class="selo" hidden>dados de exemplo</span>
 </header>
+<div class="conjuntos" role="group" aria-label="Conjunto de dados">
+  <span>Conjunto</span>
+  <button type="button" data-conjunto="piloto" aria-pressed="true">Piloto</button>
+  <button type="button" data-conjunto="oficial" aria-pressed="false">Oficial</button>
+</div>
 <main id="tela" tabindex="-1"></main>
 <nav class="abas" aria-label="Seções">
   <button data-aba="inicio" class="ativa"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg>Início</button>
@@ -33,6 +40,7 @@
 <div id="aviso" class="aviso" hidden role="status"></div>
 <input type="file" id="arquivo" hidden accept=".json,.csv,.xlsx,application/json,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
 <script src="calc.js"></script>
+<script src="planilha.js"></script>
 <script src="charts.js"></script>
 <script src="exemplo.js"></script>
 <script src="app.js"></script>
